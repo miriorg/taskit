@@ -9,7 +9,13 @@ export type DriveFileRecord = {
   content: string;
 };
 
-export class DriveFileRepository {
+export interface DriveFileStore {
+  findByName(name: string): Promise<DriveFileRecord | null>;
+  upsertJson(name: string, content: string, expectedRevision?: Revision): Promise<DriveFileRecord>;
+  deleteByName(name: string): Promise<void>;
+}
+
+export class DriveFileRepository implements DriveFileStore {
   async findByName(_name: string): Promise<DriveFileRecord | null> {
     throw new Error("Not implemented");
   }
