@@ -1,0 +1,178 @@
+.page {
+  min-height: 100vh;
+  padding: 28px;
+  background: #efe8dc;
+  color: #1f2520;
+}
+
+.pageHeader {
+  margin-bottom: 24px;
+}
+
+.pageHeader h1 {
+  margin: 0 0 8px;
+  font-size: 32px;
+}
+
+.pageHeader p {
+  margin: 0;
+  color: #5d615c;
+}
+
+.grid {
+  display: grid;
+  gap: 24px;
+}
+
+.preview {
+  display: grid;
+  gap: 12px;
+}
+
+.previewHeader h2 {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+
+.previewHeader p {
+  margin: 0;
+  color: #5d615c;
+}
+
+.mock {
+  --page-bg: #ebe4d6;
+  --page-text: #1d241f;
+  --sidebar-bg: linear-gradient(180deg, #17382d 0%, #285341 100%);
+  --sidebar-text: #f7f2e8;
+  --panel-bg: #fffaf0;
+  --panel-border: rgba(23, 56, 45, 0.18);
+  --chip-bg: #e1d5bd;
+  --task-bg: #fffdf8;
+  --muted-text: #4b5a51;
+  --accent: #c85f36;
+  --accent-text: #fff9f3;
+  display: grid;
+  grid-template-columns: 280px 1fr 280px;
+  gap: 0;
+  min-height: 560px;
+  overflow: hidden;
+  border: 1px solid rgba(31, 37, 32, 0.12);
+  border-radius: 20px;
+  background: var(--page-bg);
+  color: var(--page-text);
+  box-shadow: 0 16px 40px rgba(31, 37, 32, 0.08);
+}
+
+.sidebar {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 16px;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+}
+
+.main {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 16px;
+}
+
+.detail {
+  padding: 16px 16px 16px 0;
+}
+
+.panel {
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--panel-bg);
+}
+
+.panel h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.list,
+.taskList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: var(--chip-bg);
+  color: var(--page-text);
+  font-size: 13px;
+}
+
+.formRow {
+  display: flex;
+  gap: 8px;
+}
+
+.taskRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--task-bg);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--muted-text);
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  align-items: flex-start;
+}
+
+.detailStack {
+  display: grid;
+  gap: 8px;
+}
+
+.mock input,
+.mock select,
+.mock button {
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.mock button {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+@media (max-width: 1200px) {
+  .mock {
+    grid-template-columns: 1fr;
+  }
+
+  .detail {
+    padding: 0 16px 16px;
+  }
+}
