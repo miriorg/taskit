@@ -45,6 +45,14 @@ export function createAuthOptions(env: AuthEnvironmentSource = process.env): Nex
       GoogleProvider({
         clientId: authEnvironment.googleClientId,
         clientSecret: authEnvironment.googleClientSecret,
+        authorization: {
+          params: {
+            scope: "openid email profile https://www.googleapis.com/auth/drive.appdata",
+            prompt: "consent",
+            access_type: "offline",
+            response_type: "code",
+          },
+        },
       }),
     ],
     callbacks: {
