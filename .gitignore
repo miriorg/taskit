@@ -1,9 +1,22 @@
+# Dependency directories
 node_modules/
+
+# Next.js build output
 .next/
+
+# Local environment variables
 .env
 .env.local
+.env*.local
+
+# Test and coverage artifacts
 coverage/
 playwright-report/
 test-results/
+
+# TypeScript incremental build caches
 tsconfig.tsbuildinfo
 tsconfig.typecheck.tsbuildinfo
+
+# Vercel local project linkage
+.vercel/

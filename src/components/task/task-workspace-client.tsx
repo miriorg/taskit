@@ -11,6 +11,7 @@ type WorkspaceState = {
   tags: Tag[];
   views: View[];
   tasks: TaskListResponse["items"];
+  currentView: View | null;
 };
 
 async function readJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
@@ -28,41 +29,69 @@ async function readJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function TaskWorkspaceClient({ projectId }: { projectId?: string }) {
+function toDateTimeLocal(isoValue: string | null | undefined): string {
+  if (!isoValue) {
+    return "";
+  }
+
+  return isoValue.slice(0, 16);
+}
+
+function fromDateTimeLocal(localValue: string): string | null {
+  if (!localValue) {
+    return null;
+  }
+
+  return new Date(localValue).toISOString();
+}
+
+export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string; viewId?: string }) {
   const [workspace, setWorkspace] = useState<WorkspaceState>({
     projects: [],
     tags: [],
     views: [],
     tasks: [],
+    currentView: null,
   });
   const [taskTitle, setTaskTitle] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskPriority, setTaskPriority] = useState("");
+  const [taskTagIds, setTaskTagIds] = useState<string[]>([]);
   const [projectName, setProjectName] = useState("");
   const [projectColor, setProjectColor] = useState("#ff8080");
   const [tagName, setTagName] = useState("");
   const [viewName, setViewName] = useState("");
   const [projectRename, setProjectRename] = useState("");
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const refresh = async () => {
+    const taskEndpoint = viewId
+      ? `/api/views/${viewId}/query`
+      : projectId
+        ? `/api/tasks?projectId=${projectId}`
+        : `/api/tasks?projectId=${INBOX_PROJECT_ID}`;
     const [projects, tags, views, tasks] = await Promise.all([
       readJson<{ projects: Project[] }>("/api/projects"),
       readJson<{ tags: Tag[] }>("/api/tags"),
       readJson<{ views: View[] }>("/api/views"),
-      readJson<TaskListResponse>(projectId ? `/api/tasks?projectId=${projectId}` : `/api/tasks?projectId=${INBOX_PROJECT_ID}`),
+      readJson<TaskListResponse>(taskEndpoint, viewId ? { method: "POST" } : undefined),
     ]);
+    const currentView = viewId ? views.views.find((view) => view.id === viewId) ?? null : null;
 
     setWorkspace({
       projects: projects.projects,
       tags: tags.tags,
       views: views.views,
       tasks: tasks.items,
+      currentView,
     });
   };
 
   useEffect(() => {
     void refresh();
-  }, [projectId]);
+  }, [projectId, viewId]);
 
   useEffect(() => {
     if (projectId) {
@@ -76,6 +105,37 @@ export function TaskWorkspaceClient({ projectId }: { projectId?: string }) {
       void action().catch((error: unknown) => {
         setMessage(error instanceof Error ? error.message : "Unexpected error");
       });
+    });
+  };
+
+  const resetCreateTaskForm = () => {
+    setTaskTitle("");
+    setTaskDueDate("");
+    setTaskPriority("");
+    setTaskTagIds([]);
+  };
+
+  const toggleTaskTag = (tagId: string, checked: boolean, target: "create" | "edit") => {
+    if (target === "create") {
+      setTaskTagIds((current) => (checked ? [...current, tagId] : current.filter((id) => id !== tagId)));
+      return;
+    }
+
+    setSelectedTask((current) =>
+      current
+        ? {
+            ...current,
+            tag_ids: checked ? [...current.tag_ids, tagId] : current.tag_ids.filter((id) => id !== tagId),
+          }
+        : current,
+    );
+  };
+
+  const openTaskEditor = (taskId: string) => {
+    run(async () => {
+      const task = await readJson<Task>(`/api/tasks/${taskId}`);
+      setSelectedTask(task);
+      setMessage(null);
     });
   };
 
@@ -213,7 +273,7 @@ export function TaskWorkspaceClient({ projectId }: { projectId?: string }) {
 
       <main className="workspace__main">
         <header className="panel">
-          <h1>{projectId ? "Project" : "Inbox"}</h1>
+          <h1>{viewId ? workspace.currentView?.name ?? "View" : projectId ? "Project" : "Inbox"}</h1>
           {projectId ? (
             <form
               className="inline-form"
@@ -247,6 +307,8 @@ export function TaskWorkspaceClient({ projectId }: { projectId?: string }) {
                 Delete project
               </button>
             </form>
+          ) : viewId ? (
+            <p>Saved view based on your filters.</p>
           ) : (
             <p>Default project for uncategorized tasks.</p>
           )}
@@ -254,7 +316,7 @@ export function TaskWorkspaceClient({ projectId }: { projectId?: string }) {
 
         <section className="panel">
           <form
-            className="inline-form"
+            className="stack"
             onSubmit={(event) => {
               event.preventDefault();
               run(async () => {
@@ -263,16 +325,40 @@ export function TaskWorkspaceClient({ projectId }: { projectId?: string }) {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     title: taskTitle,
+                    due_date: fromDateTimeLocal(taskDueDate),
+                    priority: taskPriority === "" ? null : Number(taskPriority),
+                    tag_ids: taskTagIds,
                     project_id: projectId ?? INBOX_PROJECT_ID,
                   }),
                 });
-                setTaskTitle("");
+                resetCreateTaskForm();
                 await refresh();
                 setMessage("Task created");
               });
             }}
           >
             <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="New task" />
+            <input type="datetime-local" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} />
+            <select value={taskPriority} onChange={(event) => setTaskPriority(event.target.value)}>
+              <option value="">Priority</option>
+              {Array.from({ length: 10 }, (_, value) => (
+                <option key={value} value={value}>
+                  P{value}
+                </option>
+              ))}
+            </select>
+            <div className="checkbox-grid">
+              {workspace.tags.map((tag) => (
+                <label key={tag.id} className="checkbox-item">
+                  <input
+                    checked={taskTagIds.includes(tag.id)}
+                    type="checkbox"
+                    onChange={(event) => toggleTaskTag(tag.id, event.target.checked, "create")}
+                  />
+                  <span>{tag.name}</span>
+                </label>
+              ))}
+            </div>
             <button disabled={isPending || !taskTitle.trim()} type="submit">
               Add task
             </button>
@@ -287,6 +373,8 @@ export function TaskWorkspaceClient({ projectId }: { projectId?: string }) {
                   <strong>{task.title}</strong>
                   <div className="task-meta">
                     <span>{task.project.name}</span>
+                    {task.dueDate ? <span>Due {new Date(task.dueDate).toLocaleString()}</span> : null}
+                    {task.priority !== null ? <span>P{task.priority}</span> : null}
                     {task.tags.map((tag) => (
                       <span key={tag.id}>#{tag.name}</span>
                     ))}
@@ -311,11 +399,15 @@ export function TaskWorkspaceClient({ projectId }: { projectId?: string }) {
                   >
                     {task.status === "done" ? "Reopen" : "Complete"}
                   </button>
+                  <button type="button" onClick={() => openTaskEditor(task.id)}>
+                    Edit
+                  </button>
                   <button
                     type="button"
                     onClick={() =>
                       run(async () => {
                         await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
+                        setSelectedTask((current) => (current?.id === task.id ? null : current));
                         await refresh();
                         setMessage("Task deleted");
                       })
@@ -332,6 +424,95 @@ export function TaskWorkspaceClient({ projectId }: { projectId?: string }) {
 
         {message ? <p className="message">{message}</p> : null}
       </main>
+
+      <section className="workspace__detail">
+        <div className="panel">
+          <h2>{viewId ? workspace.currentView?.name ?? "View" : selectedTask ? "Edit task" : "Details"}</h2>
+          {viewId ? (
+            workspace.currentView ? (
+              <div className="stack">
+                <p>Saved filter view.</p>
+                <p>Projects: {workspace.currentView.filters.project_ids.length > 0 ? workspace.currentView.filters.project_ids.length : "All"}</p>
+                <p>Tags: {workspace.currentView.filters.tag_ids.length > 0 ? workspace.currentView.filters.tag_ids.length : "All"}</p>
+                <p>Sort: {workspace.currentView.sort.field} / {workspace.currentView.sort.direction}</p>
+              </div>
+            ) : (
+              <p>View not found.</p>
+            )
+          ) : selectedTask ? (
+            <form
+              className="stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                run(async () => {
+                  await readJson(`/api/tasks/${selectedTask.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      title: selectedTask.title,
+                      due_date: selectedTask.due_date,
+                      priority: selectedTask.priority,
+                      tag_ids: selectedTask.tag_ids,
+                      project_id: selectedTask.project_id,
+                    }),
+                  });
+                  await refresh();
+                  setMessage("Task updated");
+                });
+              }}
+            >
+              <input
+                value={selectedTask.title}
+                onChange={(event) => setSelectedTask((current) => (current ? { ...current, title: event.target.value } : current))}
+              />
+              <input
+                type="datetime-local"
+                value={toDateTimeLocal(selectedTask.due_date)}
+                onChange={(event) =>
+                  setSelectedTask((current) => (current ? { ...current, due_date: fromDateTimeLocal(event.target.value) } : current))
+                }
+              />
+              <select
+                value={selectedTask.priority ?? ""}
+                onChange={(event) =>
+                  setSelectedTask((current) =>
+                    current
+                      ? {
+                          ...current,
+                          priority: event.target.value === "" ? null : Number(event.target.value),
+                        }
+                      : current,
+                  )
+                }
+              >
+                <option value="">Priority</option>
+                {Array.from({ length: 10 }, (_, value) => (
+                  <option key={value} value={value}>
+                    P{value}
+                  </option>
+                ))}
+              </select>
+              <div className="checkbox-grid">
+                {workspace.tags.map((tag) => (
+                  <label key={tag.id} className="checkbox-item">
+                    <input
+                      checked={selectedTask.tag_ids.includes(tag.id)}
+                      type="checkbox"
+                      onChange={(event) => toggleTaskTag(tag.id, event.target.checked, "edit")}
+                    />
+                    <span>{tag.name}</span>
+                  </label>
+                ))}
+              </div>
+              <button disabled={isPending || !selectedTask.title.trim()} type="submit">
+                Save task
+              </button>
+            </form>
+          ) : (
+            <p>Select a task to edit tags, due date, and priority.</p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

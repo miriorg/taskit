@@ -166,17 +166,38 @@ export class TaskService {
       throw new Error("Task not found");
     }
 
+    const [projectMaster, tagMaster] = await Promise.all([
+      this.projectRepository.getMaster(),
+      this.tagRepository.getMaster(),
+    ]);
+
+    if (!projectMaster) {
+      throw new Error("Project master is not initialized");
+    }
+
     const currentTask = location.task;
     const sourceTaskFile = await this.taskRepository.getByProjectId(currentTask.project_id);
     const destinationProjectId = payload.status === "done"
       ? DONE_PROJECT_ID
       : payload.project_id ?? currentTask.project_id;
+
+    if (!projectMaster.projects.some((project) => project.id === destinationProjectId)) {
+      throw new Error("Project not found");
+    }
+
+    const requestedTagIds = payload.tag_ids ?? currentTask.tag_ids;
+    const unknownTagIds = requestedTagIds.filter((tagId) => !tagMaster?.tags.some((tag) => tag.id === tagId));
+
+    if (unknownTagIds.length > 0) {
+      throw new Error("Tag not found");
+    }
+
     const now = new Date().toISOString();
     const updatedTask: Task = {
       ...currentTask,
       ...payload,
       project_id: destinationProjectId,
-      tag_ids: payload.tag_ids ?? currentTask.tag_ids,
+      tag_ids: requestedTagIds,
       description: payload.description ?? currentTask.description,
       due_date: payload.due_date ?? currentTask.due_date,
       priority: payload.priority ?? currentTask.priority,
