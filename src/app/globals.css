@@ -39,6 +39,14 @@ select {
   color: #f7f3ea;
 }
 
+.workspace__sidebar .panel {
+  color: #1f2520;
+}
+
+.workspace__sidebar a {
+  color: #1f2520;
+}
+
 .workspace__main {
   display: grid;
   align-content: start;

@@ -90,6 +90,10 @@
   background: var(--panel-bg);
 }
 
+.sidebar .panel {
+  color: var(--page-text);
+}
+
 .panel h3 {
   margin: 0 0 12px;
   font-size: 16px;
