@@ -64,6 +64,9 @@ export function createAuthOptions(env: AuthEnvironmentSource = process.env): Nex
           session.user.email = session.user.email ?? token.email ?? null;
         }
 
+        session.accessToken = typeof token.accessToken === "string" ? token.accessToken : undefined;
+        session.refreshToken = typeof token.refreshToken === "string" ? token.refreshToken : undefined;
+
         return session;
       },
     },

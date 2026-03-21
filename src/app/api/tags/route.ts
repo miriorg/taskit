@@ -1,7 +1,20 @@
+import { TagService } from "@/lib/services";
+import { toErrorResponse } from "@/lib/utils/api-error";
+
 export async function GET() {
-  return Response.json({ message: "Not implemented" }, { status: 501 });
+  try {
+    const tagService = new TagService();
+    return Response.json(await tagService.list());
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }
 
-export async function POST() {
-  return Response.json({ message: "Not implemented" }, { status: 501 });
+export async function POST(request: Request) {
+  try {
+    const tagService = new TagService();
+    return Response.json(await tagService.create(await request.json()), { status: 201 });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }

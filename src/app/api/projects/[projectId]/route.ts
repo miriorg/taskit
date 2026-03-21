@@ -1,0 +1,44 @@
+import { ProjectService } from "@/lib/services";
+import { ApiRouteError, toErrorResponse } from "@/lib/utils/api-error";
+
+type RouteContext = {
+  params: Promise<{
+    projectId: string;
+  }>;
+};
+
+export async function GET(_request: Request, { params }: RouteContext) {
+  try {
+    const projectService = new ProjectService();
+    const { projectId } = await params;
+    const project = await projectService.get(projectId);
+
+    if (!project) {
+      throw new ApiRouteError("Project not found", 404, "not_found");
+    }
+
+    return Response.json(project);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+export async function PATCH(request: Request, { params }: RouteContext) {
+  try {
+    const projectService = new ProjectService();
+    const { projectId } = await params;
+    return Response.json(await projectService.update(projectId, await request.json()));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+export async function DELETE(_request: Request, { params }: RouteContext) {
+  try {
+    const projectService = new ProjectService();
+    const { projectId } = await params;
+    return Response.json(await projectService.delete(projectId));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}

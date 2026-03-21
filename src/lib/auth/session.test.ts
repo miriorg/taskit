@@ -73,6 +73,10 @@ describe("mapSessionToAppSession", () => {
         email: "miri@example.com",
         image: "https://example.com/avatar.png",
       },
+      google: {
+        accessToken: undefined,
+        refreshToken: undefined,
+      },
     });
   });
 });

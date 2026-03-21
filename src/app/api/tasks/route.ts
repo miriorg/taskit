@@ -1,7 +1,23 @@
-export async function GET() {
-  return Response.json({ message: "Not implemented" }, { status: 501 });
+import { TaskService } from "@/lib/services";
+import { toErrorResponse } from "@/lib/utils/api-error";
+
+export async function GET(request: Request) {
+  try {
+    const taskService = new TaskService();
+    const { searchParams } = new URL(request.url);
+    const projectId = searchParams.get("projectId") ?? undefined;
+
+    return Response.json(await taskService.list(projectId));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }
 
-export async function POST() {
-  return Response.json({ message: "Not implemented" }, { status: 501 });
+export async function POST(request: Request) {
+  try {
+    const taskService = new TaskService();
+    return Response.json(await taskService.create(await request.json()), { status: 201 });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
 }

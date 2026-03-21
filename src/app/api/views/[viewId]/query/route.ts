@@ -1,0 +1,18 @@
+import { ViewService } from "@/lib/services";
+import { toErrorResponse } from "@/lib/utils/api-error";
+
+type RouteContext = {
+  params: Promise<{
+    viewId: string;
+  }>;
+};
+
+export async function POST(_request: Request, { params }: RouteContext) {
+  try {
+    const viewService = new ViewService();
+    const { viewId } = await params;
+    return Response.json(await viewService.query(viewId));
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}

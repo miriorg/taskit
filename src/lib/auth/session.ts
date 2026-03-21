@@ -28,6 +28,10 @@ export function mapSessionToAppSession(session: Session | null): AppSession | nu
       email: session.user.email,
       image: session.user.image,
     },
+    google: {
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+    },
   };
 }
 

@@ -1,3 +1,8 @@
+import { BootstrapService } from "@/lib/services";
+
 export async function POST() {
-  return Response.json({ message: "Not implemented" }, { status: 501 });
+  const bootstrapService = new BootstrapService();
+  const result = await bootstrapService.execute();
+
+  return Response.json(result);
 }

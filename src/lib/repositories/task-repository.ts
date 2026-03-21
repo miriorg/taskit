@@ -51,4 +51,8 @@ export class TaskRepository {
       revision: record.revision,
     };
   }
+
+  async deleteByProjectId(projectId: string): Promise<void> {
+    await this.driveFileStore.deleteByName(buildTaskFileName(projectId));
+  }
 }
