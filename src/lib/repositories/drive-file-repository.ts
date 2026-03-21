@@ -126,11 +126,16 @@ export class DriveFileRepository implements DriveFileStore {
       throw new Error(`Revision conflict for ${name}`);
     }
 
-    const metadata = {
-      name,
-      parents: ["appDataFolder"],
-      mimeType: "application/json",
-    };
+    const metadata = existing
+      ? {
+          name,
+          mimeType: "application/json",
+        }
+      : {
+          name,
+          parents: ["appDataFolder"],
+          mimeType: "application/json",
+        };
     const boundary = "taskit-drive-upload-boundary";
     const body = [
       `--${boundary}`,
