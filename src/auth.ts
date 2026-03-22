@@ -1,4 +1,5 @@
 import type { NextAuthOptions } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import GoogleProvider from "next-auth/providers/google";
 
 export type AuthEnvironment = {
@@ -8,6 +9,12 @@ export type AuthEnvironment = {
 };
 
 type AuthEnvironmentSource = Record<string, string | undefined>;
+
+type GoogleTokenRefreshResponse = {
+  access_token: string;
+  expires_in: number;
+  refresh_token?: string;
+};
 
 export function resolveAuthEnvironment(env: AuthEnvironmentSource = process.env): AuthEnvironment {
   const nextAuthSecret = env.NEXTAUTH_SECRET;
@@ -30,6 +37,48 @@ export function resolveAuthEnvironment(env: AuthEnvironmentSource = process.env)
     nextAuthSecret,
     googleClientId,
     googleClientSecret,
+  };
+}
+
+export async function refreshGoogleAccessToken(
+  token: JWT,
+  authEnvironment: AuthEnvironment,
+): Promise<JWT> {
+  if (!token.refreshToken) {
+    return {
+      ...token,
+      error: "RefreshAccessTokenError",
+    };
+  }
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      client_id: authEnvironment.googleClientId,
+      client_secret: authEnvironment.googleClientSecret,
+      grant_type: "refresh_token",
+      refresh_token: token.refreshToken,
+    }),
+  });
+
+  if (!response.ok) {
+    return {
+      ...token,
+      error: "RefreshAccessTokenError",
+    };
+  }
+
+  const refreshedTokens = (await response.json()) as GoogleTokenRefreshResponse;
+
+  return {
+    ...token,
+    accessToken: refreshedTokens.access_token,
+    accessTokenExpiresAt: Date.now() + refreshedTokens.expires_in * 1000,
+    refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
+    error: undefined,
   };
 }
 
@@ -59,10 +108,19 @@ export function createAuthOptions(env: AuthEnvironmentSource = process.env): Nex
       async jwt({ token, account }) {
         if (account?.access_token) {
           token.accessToken = account.access_token;
+          token.accessTokenExpiresAt = account.expires_at ? account.expires_at * 1000 : undefined;
         }
 
         if (account?.refresh_token) {
           token.refreshToken = account.refresh_token;
+        }
+
+        if (typeof token.accessTokenExpiresAt === "number" && Date.now() < token.accessTokenExpiresAt) {
+          return token;
+        }
+
+        if (token.accessToken && token.refreshToken) {
+          return refreshGoogleAccessToken(token, authEnvironment);
         }
 
         return token;
@@ -74,6 +132,7 @@ export function createAuthOptions(env: AuthEnvironmentSource = process.env): Nex
 
         session.accessToken = typeof token.accessToken === "string" ? token.accessToken : undefined;
         session.refreshToken = typeof token.refreshToken === "string" ? token.refreshToken : undefined;
+        session.error = typeof token.error === "string" ? token.error : undefined;
 
         return session;
       },
