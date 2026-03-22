@@ -1,11 +1,17 @@
 import { randomUUID } from "node:crypto";
 
+import { ProjectRepository } from "@/lib/repositories/project-repository";
 import { TagRepository } from "@/lib/repositories/tag-repository";
+import { TaskRepository } from "@/lib/repositories/task-repository";
 import { createTagInputSchema, updateTagInputSchema } from "@/lib/validators";
 import type { CreateTagInput, Tag, TagListResponse, UpdateTagInput } from "@/types";
 
 export class TagService {
-  constructor(private readonly tagRepository: TagRepository = new TagRepository()) {}
+  constructor(
+    private readonly tagRepository: TagRepository = new TagRepository(),
+    private readonly projectRepository: ProjectRepository = new ProjectRepository(),
+    private readonly taskRepository: TaskRepository = new TaskRepository(),
+  ) {}
 
   async list(): Promise<TagListResponse> {
     const master = await this.tagRepository.getMaster();
@@ -90,7 +96,10 @@ export class TagService {
   }
 
   async delete(tagId: string, expectedRevision?: string): Promise<void> {
-    const master = await this.tagRepository.getMaster();
+    const [master, projectMaster] = await Promise.all([
+      this.tagRepository.getMaster(),
+      this.projectRepository.getMaster(),
+    ]);
 
     if (!master) {
       throw new Error("Tag master is not initialized");
@@ -108,5 +117,28 @@ export class TagService {
       },
       expectedRevision ?? master.revision,
     );
+
+    const projectIds = projectMaster?.projects.map((project) => project.id) ?? [];
+
+    for (const projectId of projectIds) {
+      const taskFile = await this.taskRepository.getByProjectId(projectId);
+      const hasReference = taskFile.tasks.some((task) => task.tag_ids.includes(tagId));
+
+      if (!hasReference) {
+        continue;
+      }
+
+      await this.taskRepository.save(
+        {
+          ...taskFile,
+          updated_at: new Date().toISOString(),
+          tasks: taskFile.tasks.map((task) => ({
+            ...task,
+            tag_ids: task.tag_ids.filter((candidateTagId) => candidateTagId !== tagId),
+          })),
+        },
+        taskFile.revision,
+      );
+    }
   }
 }

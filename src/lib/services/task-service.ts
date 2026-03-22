@@ -228,10 +228,13 @@ export class TaskService {
     }
 
     const requestedTagIds = payload.tag_ids ?? currentTask.tag_ids;
-    const unknownTagIds = requestedTagIds.filter((tagId) => !tagMaster?.tags.some((tag) => tag.id === tagId));
 
-    if (unknownTagIds.length > 0) {
-      throw new Error("Tag not found");
+    if (payload.tag_ids) {
+      const unknownTagIds = requestedTagIds.filter((tagId) => !tagMaster?.tags.some((tag) => tag.id === tagId));
+
+      if (unknownTagIds.length > 0) {
+        throw new Error("Tag not found");
+      }
     }
 
     const now = new Date().toISOString();
