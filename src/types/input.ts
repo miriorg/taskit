@@ -53,4 +53,5 @@ export type GenerateTestTasksInput = {
   project_id: string;
   tag_ids: string[];
   count: number;
+  use_random_tags?: boolean;
 };

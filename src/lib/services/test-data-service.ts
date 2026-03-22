@@ -70,7 +70,7 @@ function pickTagIds(tagIds: string[]): string[] {
   return shuffled.slice(0, count);
 }
 
-function buildTask(projectId: string, title: string, availableTagIds: string[], createdAt: string): Task {
+function buildTask(projectId: string, title: string, tagIds: string[], createdAt: string): Task {
   const dueOffsetDays = Math.floor(Math.random() * 21);
   const dueOffsetHours = Math.floor(Math.random() * 10);
   const dueDate = new Date(Date.now() + ((dueOffsetDays * 24 + dueOffsetHours) * 60 * 60 * 1000));
@@ -84,7 +84,7 @@ function buildTask(projectId: string, title: string, availableTagIds: string[], 
     due_date: dueDate.toISOString(),
     priority: randomItem(priorityPool),
     status: "todo",
-    tag_ids: pickTagIds(availableTagIds),
+    tag_ids: tagIds,
     reminders: [],
     created_at: createdAt,
     updated_at: createdAt,
@@ -123,8 +123,14 @@ export class TestDataService {
     const taskFile = await this.taskRepository.getByProjectId(payload.project_id);
     const existingTitles = new Set(taskFile.tasks.map((task) => task.title));
     const now = new Date().toISOString();
+    const randomTagPool = payload.tag_ids.length > 0 ? payload.tag_ids : (tagMaster?.tags ?? []).map((tag) => tag.id);
     const tasks = Array.from({ length: payload.count }, (_, index) =>
-      buildTask(payload.project_id, buildUniqueTitle(existingTitles, index), payload.tag_ids, now),
+      buildTask(
+        payload.project_id,
+        buildUniqueTitle(existingTitles, index),
+        payload.use_random_tags ? pickTagIds(randomTagPool) : payload.tag_ids,
+        now,
+      ),
     );
 
     await this.taskRepository.save(

@@ -20,6 +20,7 @@ export function TestDataGeneratorClient() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [projectId, setProjectId] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [useRandomTags, setUseRandomTags] = useState(true);
   const [count, setCount] = useState("5");
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -64,6 +65,7 @@ export function TestDataGeneratorClient() {
                       project_id: projectId,
                       tag_ids: selectedTagIds,
                       count: Number(count),
+                      use_random_tags: useRandomTags,
                     }),
                   });
                   setMessage(`${response.tasks.length} tasks created.`);
@@ -99,6 +101,10 @@ export function TestDataGeneratorClient() {
 
           <div className="stack">
             <span>Candidate tags</span>
+            <label className="checkbox-item">
+              <input checked={useRandomTags} type="checkbox" onChange={(event) => setUseRandomTags(event.target.checked)} />
+              <span>ランダムにタグを選択する</span>
+            </label>
             <div className="checkbox-grid">
               {tags.map((tag) => (
                 <label key={tag.id} className="checkbox-item">
@@ -115,6 +121,11 @@ export function TestDataGeneratorClient() {
                 </label>
               ))}
             </div>
+            <p>
+              {useRandomTags
+                ? "候補タグを選ぶと、その中から各タスクごとにランダムでタグを付与します。未選択なら全タグが候補です。"
+                : "候補タグを選ぶと、選択したタグをすべて各タスクへ付与します。"}
+            </p>
           </div>
 
           <button disabled={isPending || !projectId || Number(count) < 1} type="submit">
