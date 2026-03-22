@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 import type { FileRevisionMap, Project, ProjectListResponse, Tag, TagListResponse, Task, TaskListResponse, View, ViewListResponse } from "@/types";
 import { DONE_PROJECT_ID, INBOX_PROJECT_ID } from "@/lib/utils/system-projects";
@@ -112,6 +113,7 @@ function fromDateTimeLocal(localValue: string): string | null {
 }
 
 export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string; viewId?: string }) {
+  const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceState>({
       projects: [],
       tags: [],
@@ -132,9 +134,13 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [searchQuery, setSearchQuery] = useState("");
   const [projectRename, setProjectRename] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [shortcutPrefix, setShortcutPrefix] = useState<string | null>(null);
+  const createTaskInputRef = useRef<HTMLInputElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const withExpectedRevision = (revisionKey: keyof FileRevisionMap | `task:${string}` | undefined, init?: RequestInit): RequestInit => {
     const headers = new Headers(init?.headers);
@@ -265,7 +271,21 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     run(async () => {
       const task = await readJson<Task>(`/api/tasks/${taskId}`);
       setSelectedTask(task);
+      setActiveTaskId(taskId);
       setMessage(null);
+    });
+  };
+
+  const toggleTaskStatus = (task: TaskListResponse["items"][number]) => {
+    run(async () => {
+      await readJson(`/api/tasks/${task.id}`, {
+        ...withJsonRevision(`task:${task.project.id}`, { method: "PATCH" }),
+        body: JSON.stringify({
+          status: task.status === "done" ? "todo" : "done",
+        }),
+      });
+      await refresh();
+      setMessage(task.status === "done" ? "Task reopened" : "Task updated");
     });
   };
 
@@ -276,6 +296,106 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       : "Inbox";
   const isDoneProjectPage = projectId === DONE_PROJECT_ID;
   const shouldShowCompletedSection = !projectId;
+  const visibleTasks = isDoneProjectPage ? workspace.tasks.completedItems : workspace.tasks.todoItems;
+
+  useEffect(() => {
+    if (visibleTasks.length === 0) {
+      setActiveTaskId(null);
+      return;
+    }
+
+    if (!activeTaskId || !visibleTasks.some((task) => task.id === activeTaskId)) {
+      setActiveTaskId(visibleTasks[0]?.id ?? null);
+    }
+  }, [activeTaskId, visibleTasks]);
+
+  useEffect(() => {
+    if (!shortcutPrefix) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => setShortcutPrefix(null), 1000);
+    return () => window.clearTimeout(timer);
+  }, [shortcutPrefix]);
+
+  useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      const tagName = target.tagName.toLowerCase();
+      return target.isContentEditable || tagName === "input" || tagName === "textarea" || tagName === "select";
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      if (shortcutPrefix === "g") {
+        if (event.key === "i") {
+          event.preventDefault();
+          setShortcutPrefix(null);
+          router.push("/inbox");
+          return;
+        }
+
+        if (event.key === "d") {
+          event.preventDefault();
+          setShortcutPrefix(null);
+          router.push(`/project/${DONE_PROJECT_ID}`);
+          return;
+        }
+      }
+
+      if (isTypingTarget(event.target)) {
+        if (event.key === "/" && searchInputRef.current) {
+          event.preventDefault();
+          searchInputRef.current.focus();
+          searchInputRef.current.select();
+        }
+
+        return;
+      }
+
+      if (event.key === "q" && createTaskInputRef.current) {
+        event.preventDefault();
+        createTaskInputRef.current.focus();
+        createTaskInputRef.current.select();
+        return;
+      }
+
+      if (event.key === "/") {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      if (event.key === "g") {
+        event.preventDefault();
+        setShortcutPrefix("g");
+        return;
+      }
+
+      const activeTask = visibleTasks.find((task) => task.id === activeTaskId);
+
+      if (event.key === "e" && activeTask) {
+        event.preventDefault();
+        openTaskEditor(activeTask.id);
+        return;
+      }
+
+      if (event.key === "x" && activeTask) {
+        event.preventDefault();
+        toggleTaskStatus(activeTask);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeTaskId, router, shortcutPrefix, visibleTasks]);
 
   return (
     <div className="workspace">
@@ -555,6 +675,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             }}
           >
             <input
+              ref={searchInputRef}
               value={searchDraft}
               onChange={(event) => setSearchDraft(event.target.value)}
               placeholder="Search tasks"
@@ -573,6 +694,10 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               Clear
             </button>
           </form>
+          <p className="section-caption">
+            Shortcuts: <code>/</code> search, <code>q</code> new task, <code>e</code> edit selected, <code>x</code> complete or
+            reopen, <code>g i</code> inbox, <code>g d</code> done.
+          </p>
         </header>
 
         <section className="panel">
@@ -598,7 +723,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 });
               }}
             >
-              <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="New task" />
+              <input ref={createTaskInputRef} value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="New task" />
               <input type="datetime-local" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} />
               <select value={taskPriority} onChange={(event) => setTaskPriority(event.target.value)}>
                 <option value="">Priority</option>
@@ -634,8 +759,12 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
           <h2 className="section-heading">{`▼ ${workspaceLabel}`}</h2>
           <ul className="task-list">
-            {(isDoneProjectPage ? workspace.tasks.completedItems : workspace.tasks.todoItems).map((task) => (
-              <li key={task.id} className={`task-row${task.status === "done" ? " task-row--completed" : ""}`}>
+            {visibleTasks.map((task) => (
+              <li
+                key={task.id}
+                className={`task-row${task.status === "done" ? " task-row--completed" : ""}${activeTaskId === task.id ? " task-row--active" : ""}`}
+                onClick={() => setActiveTaskId(task.id)}
+              >
                 <div>
                   <strong>{task.title}</strong>
                   <div className="task-meta">
@@ -650,18 +779,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 <div className="task-actions">
                   <button
                     type="button"
-                    onClick={() =>
-                      run(async () => {
-                        await readJson(`/api/tasks/${task.id}`, {
-                          ...withJsonRevision(`task:${task.project.id}`, { method: "PATCH" }),
-                          body: JSON.stringify({
-                            status: task.status === "done" ? "todo" : "done",
-                          }),
-                        });
-                        await refresh();
-                        setMessage(task.status === "done" ? "Task reopened" : "Task updated");
-                      })
-                    }
+                    onClick={() => toggleTaskStatus(task)}
                   >
                     {task.status === "done" ? "Reopen" : "Complete"}
                   </button>
