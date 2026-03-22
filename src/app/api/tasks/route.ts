@@ -7,8 +7,9 @@ export async function GET(request: Request) {
     const taskService = new TaskService();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get("projectId") ?? undefined;
+    const includeProjectDescendants = searchParams.get("includeProjectDescendants") === "true";
 
-    return Response.json(await taskService.list(projectId));
+    return Response.json(await taskService.list({ projectId, includeProjectDescendants }));
   } catch (error) {
     return toErrorResponse(error);
   }

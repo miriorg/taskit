@@ -112,6 +112,50 @@ function fromDateTimeLocal(localValue: string): string | null {
   return new Date(localValue).toISOString();
 }
 
+function getIndentedProjects(projects: Project[]): Array<Project & { depth: number }> {
+  const childrenByParent = new Map<string | null, Project[]>();
+
+  projects.forEach((project) => {
+    const siblings = childrenByParent.get(project.parent_id) ?? [];
+    siblings.push(project);
+    childrenByParent.set(project.parent_id, siblings);
+  });
+
+  const sortProjects = (items: Project[]) => [...items].sort((left, right) => left.name.localeCompare(right.name));
+  const ordered: Array<Project & { depth: number }> = [];
+
+  const walk = (parentId: string | null, depth: number) => {
+    sortProjects(childrenByParent.get(parentId) ?? []).forEach((project) => {
+      ordered.push({ ...project, depth });
+      walk(project.id, depth + 1);
+    });
+  };
+
+  walk(null, 0);
+  return ordered;
+}
+
+function collectDescendantIds(projects: Project[], rootProjectId: string): string[] {
+  const descendants = new Set<string>();
+  const stack = [rootProjectId];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+
+    if (!current || descendants.has(current)) {
+      continue;
+    }
+
+    descendants.add(current);
+
+    projects
+      .filter((project) => project.parent_id === current)
+      .forEach((project) => stack.push(project.id));
+  }
+
+  return Array.from(descendants);
+}
+
 export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string; viewId?: string }) {
   const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceState>({
@@ -133,9 +177,12 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [projectRename, setProjectRename] = useState("");
+  const [parentProjectId, setParentProjectId] = useState("");
+  const [subprojectName, setSubprojectName] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(true);
+  const [includeChildProjects, setIncludeChildProjects] = useState(Boolean(projectId));
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [shortcutPrefix, setShortcutPrefix] = useState<string | null>(null);
@@ -168,6 +215,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const refresh = async () => {
     const resolvedProjectId = projectId ?? INBOX_PROJECT_ID;
     const trimmedSearchQuery = searchQuery.trim();
+    const includeProjectDescendants = Boolean(projectId) && includeChildProjects;
     const taskRequest = viewId
       ? readJson<TaskListResponse>(`/api/views/${viewId}/query`, {
           method: "POST",
@@ -178,9 +226,13 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         ? readJson<TaskListResponse>(`/api/search?${new URLSearchParams({
             query: trimmedSearchQuery,
             projectId: resolvedProjectId,
+            includeProjectDescendants: includeProjectDescendants ? "true" : "false",
             includeCompleted: "true",
           }).toString()}`)
-        : readJson<TaskListResponse>(`/api/tasks?projectId=${resolvedProjectId}`);
+        : readJson<TaskListResponse>(`/api/tasks?${new URLSearchParams({
+            projectId: resolvedProjectId,
+            includeProjectDescendants: includeProjectDescendants ? "true" : "false",
+          }).toString()}`);
     const [projects, tags, views, tasks] = await Promise.all([
       readJson<ProjectListResponse>("/api/projects"),
       readJson<TagListResponse>("/api/tags"),
@@ -206,14 +258,19 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
   useEffect(() => {
     void refresh();
-  }, [projectId, searchQuery, viewId]);
+  }, [includeChildProjects, projectId, searchQuery, viewId]);
 
   useEffect(() => {
     if (projectId) {
       const currentProject = workspace.projects.find((project) => project.id === projectId);
       setProjectRename(currentProject?.name ?? "");
+      setParentProjectId(currentProject?.parent_id ?? "");
     }
   }, [projectId, workspace.projects]);
+
+  useEffect(() => {
+    setIncludeChildProjects(Boolean(projectId));
+  }, [projectId]);
 
   useEffect(() => {
     if (viewId && workspace.currentView) {
@@ -295,6 +352,14 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       ? workspace.projects.find((project) => project.id === projectId)?.name ?? "Project"
       : "Inbox";
   const isDoneProjectPage = projectId === DONE_PROJECT_ID;
+  const currentProject = projectId ? workspace.projects.find((project) => project.id === projectId) ?? null : null;
+  const descendantIds = currentProject ? collectDescendantIds(workspace.projects, currentProject.id) : [];
+  const availableParentProjects = workspace.projects
+    .filter((project) => project.id !== INBOX_PROJECT_ID && project.id !== DONE_PROJECT_ID)
+    .filter((project) => project.id !== currentProject?.id)
+    .filter((project) => !descendantIds.includes(project.id))
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const visibleProjects = getIndentedProjects(workspace.projects).filter((project) => project.id !== INBOX_PROJECT_ID);
   const shouldShowCompletedSection = !projectId;
   const visibleTasks = isDoneProjectPage ? workspace.tasks.completedItems : workspace.tasks.todoItems;
 
@@ -404,10 +469,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           <h2>Projects</h2>
           <nav className="list">
             <Link href="/inbox">Inbox</Link>
-            {workspace.projects
-              .filter((project) => project.id !== INBOX_PROJECT_ID)
-              .map((project) => (
-                <Link key={project.id} href={`/project/${project.id}`}>
+            {visibleProjects.map((project) => (
+                <Link key={project.id} href={`/project/${project.id}`} style={{ paddingLeft: `${project.depth * 16}px` }}>
                   {project.name}
                 </Link>
               ))}
@@ -631,37 +694,84 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         <header className="panel">
           <h1>{viewId ? workspace.currentView?.name ?? "View" : projectId ? "Project" : "Inbox"}</h1>
           {projectId ? (
-            <form
-              className="inline-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                run(async () => {
-                  await readJson(`/api/projects/${projectId}`, {
-                    ...withJsonRevision("project", { method: "PATCH" }),
-                    body: JSON.stringify({ name: projectRename }),
-                  });
-                  await refresh();
-                  setMessage("Project updated");
-                });
-              }}
-            >
-              <input value={projectRename} onChange={(event) => setProjectRename(event.target.value)} />
-              <button disabled={isPending || !projectRename.trim()} type="submit">
-                Rename
-              </button>
-              <button
-                disabled={isPending}
-                type="button"
-                onClick={() =>
-                  run(async () => {
-                    await fetch(`/api/projects/${projectId}`, withExpectedRevision("project", { method: "DELETE" }));
-                    window.location.href = "/inbox";
-                  })
-                }
-              >
-                Delete project
-              </button>
-            </form>
+            !currentProject ? (
+              <p>Loading project...</p>
+            ) : currentProject.system ? (
+              <p>System project settings are fixed.</p>
+            ) : (
+              <div className="stack">
+                <form
+                  className="inline-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    run(async () => {
+                      await readJson(`/api/projects/${projectId}`, {
+                        ...withJsonRevision("project", { method: "PATCH" }),
+                        body: JSON.stringify({
+                          name: projectRename,
+                          parent_id: parentProjectId || null,
+                        }),
+                      });
+                      await refresh();
+                      setMessage("Project updated");
+                    });
+                  }}
+                >
+                  <input value={projectRename} onChange={(event) => setProjectRename(event.target.value)} />
+                  <select value={parentProjectId} onChange={(event) => setParentProjectId(event.target.value)}>
+                    <option value="">No parent</option>
+                    {availableParentProjects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button disabled={isPending || !projectRename.trim()} type="submit">
+                    Save project
+                  </button>
+                  <button
+                    disabled={isPending}
+                    type="button"
+                    onClick={() =>
+                      run(async () => {
+                        await fetch(`/api/projects/${projectId}`, withExpectedRevision("project", { method: "DELETE" }));
+                        window.location.href = "/inbox";
+                      })
+                    }
+                  >
+                    Delete project
+                  </button>
+                </form>
+                <form
+                  className="inline-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    run(async () => {
+                      await readJson("/api/projects", {
+                        ...withJsonRevision("project", { method: "POST" }),
+                        body: JSON.stringify({
+                          name: subprojectName,
+                          color: currentProject.color,
+                          parent_id: projectId,
+                        }),
+                      });
+                      setSubprojectName("");
+                      await refresh();
+                      setMessage("Subproject created");
+                    });
+                  }}
+                >
+                  <input
+                    value={subprojectName}
+                    onChange={(event) => setSubprojectName(event.target.value)}
+                    placeholder="New subproject"
+                  />
+                  <button disabled={isPending || !subprojectName.trim()} type="submit">
+                    Add subproject
+                  </button>
+                </form>
+              </div>
+            )
           ) : viewId ? (
             <p>Saved view based on your filters.</p>
           ) : (
@@ -758,6 +868,12 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           {searchQuery ? <p className="section-caption">Search results for "{searchQuery}"</p> : null}
 
           <h2 className="section-heading">{`▼ ${workspaceLabel}`}</h2>
+          {projectId && !currentProject?.system ? (
+            <label className="checkbox-item checkbox-item--inline">
+              <input checked={includeChildProjects} type="checkbox" onChange={(event) => setIncludeChildProjects(event.target.checked)} />
+              <span>子プロジェクトを含める</span>
+            </label>
+          ) : null}
           <ul className="task-list">
             {visibleTasks.map((task) => (
               <li

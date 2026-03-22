@@ -120,23 +120,15 @@ export class ViewService {
     }
 
     const listResponse = await this.taskService.list({
+      projectIds: view.filters.project_ids,
+      includeProjectDescendants: view.filters.include_project_descendants,
+      includeCompleted: view.display_options.show_completed,
+      tagIds: view.filters.tag_ids,
       query: options?.query,
     });
     const today = new Date();
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
     const filtered = listResponse.items.filter((item) => {
-      if (view.filters.project_ids.length > 0 && !view.filters.project_ids.includes(item.project.id)) {
-        return false;
-      }
-
-      if (view.filters.tag_ids.length > 0) {
-        const itemTagIds = item.tags.map((tag) => tag.id);
-
-        if (!view.filters.tag_ids.every((tagId) => itemTagIds.includes(tagId))) {
-          return false;
-        }
-      }
-
       const query = view.filters.query?.trim().toLowerCase();
 
       if (query) {

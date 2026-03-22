@@ -57,6 +57,24 @@ const projectMaster: ProjectMasterFile = {
       updated_at: "2026-03-22T00:00:00.000Z",
     },
     {
+      id: "proj-parent",
+      name: "Parent",
+      color: "#336699",
+      parent_id: null,
+      system: false,
+      created_at: "2026-03-22T00:00:00.000Z",
+      updated_at: "2026-03-22T00:00:00.000Z",
+    },
+    {
+      id: "proj-child",
+      name: "Child",
+      color: "#336699",
+      parent_id: "proj-parent",
+      system: false,
+      created_at: "2026-03-22T00:00:00.000Z",
+      updated_at: "2026-03-22T00:00:00.000Z",
+    },
+    {
       id: DONE_PROJECT_ID,
       name: "Done",
       color: "#556677",
@@ -128,6 +146,48 @@ function createService() {
       {
         schema_version: 1,
         updated_at: "2026-03-22T00:00:00.000Z",
+        project_id: "proj-parent",
+        tasks: [
+          {
+            id: "task-parent",
+            project_id: "proj-parent",
+            title: "Parent task",
+            description: null,
+            due_date: "2026-03-24T03:00:00.000Z",
+            priority: 3,
+            status: "todo",
+            tag_ids: [],
+            reminders: [],
+            created_at: "2026-03-22T00:00:00.000Z",
+            updated_at: "2026-03-22T00:00:00.000Z",
+            completed_at: null,
+          },
+        ],
+      },
+      {
+        schema_version: 1,
+        updated_at: "2026-03-22T00:00:00.000Z",
+        project_id: "proj-child",
+        tasks: [
+          {
+            id: "task-child",
+            project_id: "proj-child",
+            title: "Child task",
+            description: null,
+            due_date: "2026-03-25T03:00:00.000Z",
+            priority: 4,
+            status: "todo",
+            tag_ids: [],
+            reminders: [],
+            created_at: "2026-03-22T00:00:00.000Z",
+            updated_at: "2026-03-22T00:00:00.000Z",
+            completed_at: null,
+          },
+        ],
+      },
+      {
+        schema_version: 1,
+        updated_at: "2026-03-22T00:00:00.000Z",
         project_id: DONE_PROJECT_ID,
         tasks: [
           {
@@ -158,9 +218,9 @@ describe("TaskService.list", () => {
 
     const result = await service.list();
 
-    expect(result.todoItems.map((task) => task.id)).toEqual(["task-1", "task-2"]);
+    expect(result.todoItems.map((task) => task.id)).toEqual(["task-1", "task-parent", "task-child", "task-2"]);
     expect(result.completedItems.map((task) => task.id)).toEqual(["task-3"]);
-    expect(result.items).toHaveLength(3);
+    expect(result.items).toHaveLength(5);
   });
 
   it("filters by query and tag ids", async () => {
@@ -182,8 +242,20 @@ describe("TaskService.list", () => {
       includeCompleted: false,
     });
 
-    expect(result.items.map((task) => task.id)).toEqual(["task-1", "task-2"]);
+    expect(result.items.map((task) => task.id)).toEqual(["task-1", "task-parent", "task-child", "task-2"]);
     expect(result.completedItems).toEqual([]);
+  });
+
+  it("can include descendant project tasks", async () => {
+    const service = createService();
+
+    const result = await service.list({
+      projectId: "proj-parent",
+      includeProjectDescendants: true,
+      includeCompleted: false,
+    });
+
+    expect(result.items.map((task) => task.id)).toEqual(["task-parent", "task-child"]);
   });
 });
 

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { ProjectRepository } from "@/lib/repositories/project-repository";
 import { TaskRepository } from "@/lib/repositories/task-repository";
 import { TagRepository } from "@/lib/repositories/tag-repository";
+import { collectDescendantProjectIds } from "@/lib/services/project-service";
 import { DONE_PROJECT_ID, INBOX_PROJECT_ID } from "@/lib/utils/system-projects";
 import { createTaskInputSchema, updateTaskInputSchema } from "@/lib/validators";
 import type { CreateTaskInput, Task, TaskListItemDto, TaskListResponse, UpdateTaskInput } from "@/types";
@@ -15,6 +16,7 @@ type TaskLocation = {
 export type TaskListOptions = {
   projectId?: string;
   projectIds?: string[];
+  includeProjectDescendants?: boolean;
   query?: string;
   tagIds?: string[];
   includeCompleted?: boolean;
@@ -80,16 +82,27 @@ export class TaskService {
     private readonly tagRepository: TagRepository = new TagRepository(),
   ) {}
 
-  private async resolveProjectIds(options?: Pick<TaskListOptions, "projectId" | "projectIds">): Promise<string[]> {
+  private async resolveProjectIds(options?: Pick<TaskListOptions, "projectId" | "projectIds" | "includeProjectDescendants">): Promise<string[]> {
+    const projectMaster = await this.projectRepository.getMaster();
+
     if (options?.projectIds && options.projectIds.length > 0) {
-      return options.projectIds;
+      if (!options.includeProjectDescendants || !projectMaster) {
+        return options.projectIds;
+      }
+
+      return Array.from(
+        new Set(options.projectIds.flatMap((projectId) => collectDescendantProjectIds(projectMaster.projects, projectId))),
+      );
     }
 
     if (options?.projectId) {
+      if (options.includeProjectDescendants && projectMaster) {
+        return collectDescendantProjectIds(projectMaster.projects, options.projectId);
+      }
+
       return [options.projectId];
     }
 
-    const projectMaster = await this.projectRepository.getMaster();
     return projectMaster?.projects.map((project) => project.id) ?? [INBOX_PROJECT_ID, DONE_PROJECT_ID];
   }
 

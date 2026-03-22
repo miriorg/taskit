@@ -6,7 +6,7 @@ import { SYSTEM_PROJECT_IDS } from "@/lib/utils/system-projects";
 import { createProjectInputSchema, updateProjectInputSchema } from "@/lib/validators";
 import type { CreateProjectInput, Project, ProjectListResponse, UpdateProjectInput } from "@/types";
 
-function collectDescendantProjectIds(projects: Project[], rootProjectId: string): string[] {
+export function collectDescendantProjectIds(projects: Project[], rootProjectId: string): string[] {
   const childrenByParent = new Map<string, string[]>();
 
   projects.forEach((project) => {
@@ -37,6 +37,10 @@ function collectDescendantProjectIds(projects: Project[], rootProjectId: string)
   return Array.from(visited);
 }
 
+function isDescendantProject(projects: Project[], candidateParentId: string, projectId: string): boolean {
+  return collectDescendantProjectIds(projects, projectId).includes(candidateParentId);
+}
+
 export class ProjectService {
   constructor(
     private readonly projectRepository: ProjectRepository = new ProjectRepository(),
@@ -65,8 +69,16 @@ export class ProjectService {
       throw new Error("Project master is not initialized");
     }
 
-    if (payload.parent_id && !master.projects.some((project) => project.id === payload.parent_id)) {
-      throw new Error("Parent project not found");
+    if (payload.parent_id) {
+      const parentProject = master.projects.find((project) => project.id === payload.parent_id);
+
+      if (!parentProject) {
+        throw new Error("Parent project not found");
+      }
+
+      if (parentProject.system) {
+        throw new Error("System project cannot be a parent");
+      }
     }
 
     const now = new Date().toISOString();
@@ -104,12 +116,34 @@ export class ProjectService {
       throw new Error("Project not found");
     }
 
-    if (currentProject.system && payload.name) {
-      throw new Error("System project cannot be renamed");
+    if (currentProject.system) {
+      if (payload.name) {
+        throw new Error("System project cannot be renamed");
+      }
+
+      if (payload.parent_id !== undefined) {
+        throw new Error("System project parent cannot be changed");
+      }
     }
 
-    if (payload.parent_id && !master.projects.some((project) => project.id === payload.parent_id)) {
-      throw new Error("Parent project not found");
+    if (payload.parent_id) {
+      const parentProject = master.projects.find((project) => project.id === payload.parent_id);
+
+      if (!parentProject) {
+        throw new Error("Parent project not found");
+      }
+
+      if (parentProject.system) {
+        throw new Error("System project cannot be a parent");
+      }
+
+      if (payload.parent_id === projectId) {
+        throw new Error("Project cannot be its own parent");
+      }
+
+      if (isDescendantProject(master.projects, payload.parent_id, projectId)) {
+        throw new Error("Project cannot move under its descendant");
+      }
     }
 
     const now = new Date().toISOString();
