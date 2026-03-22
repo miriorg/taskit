@@ -48,3 +48,9 @@ export type CreateViewInput = {
 };
 
 export type UpdateViewInput = Partial<CreateViewInput>;
+
+export type GenerateTestTasksInput = {
+  project_id: string;
+  tag_ids: string[];
+  count: number;
+};

@@ -31,6 +31,16 @@ select {
   min-height: 100vh;
 }
 
+.settings-page {
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.settings-panel {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
 .workspace__sidebar {
   display: grid;
   gap: 16px;

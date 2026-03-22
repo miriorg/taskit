@@ -54,3 +54,9 @@ export const createViewInputSchema = z.object({
 });
 
 export const updateViewInputSchema = createViewInputSchema.partial();
+
+export const generateTestTasksInputSchema = z.object({
+  project_id: z.string().min(1),
+  tag_ids: z.array(z.string().min(1)).max(20),
+  count: z.number().int().min(1).max(100),
+});
