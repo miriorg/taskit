@@ -25,7 +25,7 @@ export class ViewService {
     return master?.views.find((view) => view.id === viewId) ?? null;
   }
 
-  async create(input: CreateViewInput): Promise<View> {
+  async create(input: CreateViewInput, expectedRevision?: string): Promise<View> {
     const payload = createViewInputSchema.parse(input);
     const master = await this.viewRepository.getMaster();
 
@@ -50,13 +50,13 @@ export class ViewService {
         updated_at: now,
         views: [...master.views, view],
       },
-      master.revision,
+      expectedRevision ?? master.revision,
     );
 
     return view;
   }
 
-  async update(viewId: string, input: UpdateViewInput): Promise<View> {
+  async update(viewId: string, input: UpdateViewInput, expectedRevision?: string): Promise<View> {
     const payload = updateViewInputSchema.parse(input);
     const master = await this.viewRepository.getMaster();
 
@@ -85,13 +85,13 @@ export class ViewService {
         updated_at: updated.updated_at,
         views: master.views.map((view) => (view.id === viewId ? updated : view)),
       },
-      master.revision,
+      expectedRevision ?? master.revision,
     );
 
     return updated;
   }
 
-  async delete(viewId: string): Promise<void> {
+  async delete(viewId: string, expectedRevision?: string): Promise<void> {
     const master = await this.viewRepository.getMaster();
 
     if (!master) {
@@ -108,7 +108,7 @@ export class ViewService {
         updated_at: new Date().toISOString(),
         views: master.views.filter((view) => view.id !== viewId),
       },
-      master.revision,
+      expectedRevision ?? master.revision,
     );
   }
 

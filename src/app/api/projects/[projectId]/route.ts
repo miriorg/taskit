@@ -1,5 +1,6 @@
 import { ProjectService } from "@/lib/services";
 import { ApiRouteError, toErrorResponse } from "@/lib/utils/api-error";
+import { getExpectedRevision } from "@/lib/utils/request-revision";
 
 type RouteContext = {
   params: Promise<{
@@ -27,17 +28,17 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   try {
     const projectService = new ProjectService();
     const { projectId } = await params;
-    return Response.json(await projectService.update(projectId, await request.json()));
+    return Response.json(await projectService.update(projectId, await request.json(), getExpectedRevision(request)));
   } catch (error) {
     return toErrorResponse(error);
   }
 }
 
-export async function DELETE(_request: Request, { params }: RouteContext) {
+export async function DELETE(request: Request, { params }: RouteContext) {
   try {
     const projectService = new ProjectService();
     const { projectId } = await params;
-    return Response.json(await projectService.delete(projectId));
+    return Response.json(await projectService.delete(projectId, getExpectedRevision(request)));
   } catch (error) {
     return toErrorResponse(error);
   }

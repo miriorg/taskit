@@ -20,6 +20,10 @@ export type TaskListOptions = {
   includeCompleted?: boolean;
 };
 
+export type TaskMutationOptions = {
+  expectedRevision?: string;
+};
+
 function toTaskListItem(task: Task, projectMap: Map<string, { id: string; name: string; color: string }>, tagMap: Map<string, { id: string; name: string }>): TaskListItemDto {
   return {
     id: task.id,
@@ -144,7 +148,7 @@ export class TaskService {
     return location?.task ?? null;
   }
 
-  async create(input: CreateTaskInput): Promise<Task> {
+  async create(input: CreateTaskInput, options?: TaskMutationOptions): Promise<Task> {
     const payload = createTaskInputSchema.parse(input);
     const [projectMaster, tagMaster] = await Promise.all([
       this.projectRepository.getMaster(),
@@ -190,13 +194,13 @@ export class TaskService {
         updated_at: now,
         tasks: [...taskFile.tasks, task],
       },
-      taskFile.revision,
+      options?.expectedRevision ?? taskFile.revision,
     );
 
     return task;
   }
 
-  async update(taskId: string, input: UpdateTaskInput): Promise<Task> {
+  async update(taskId: string, input: UpdateTaskInput, options?: TaskMutationOptions): Promise<Task> {
     const payload = updateTaskInputSchema.parse(input);
     const location = await this.findTaskById(taskId);
 
@@ -251,7 +255,7 @@ export class TaskService {
           updated_at: now,
           tasks: sourceTaskFile.tasks.map((task) => (task.id === taskId ? updatedTask : task)),
         },
-        sourceTaskFile.revision,
+        options?.expectedRevision ?? sourceTaskFile.revision,
       );
 
       return updatedTask;
@@ -264,7 +268,7 @@ export class TaskService {
         updated_at: now,
         tasks: sourceTaskFile.tasks.filter((task) => task.id !== taskId),
       },
-      sourceTaskFile.revision,
+      options?.expectedRevision ?? sourceTaskFile.revision,
     );
     await this.taskRepository.save(
       {
@@ -278,7 +282,7 @@ export class TaskService {
     return updatedTask;
   }
 
-  async delete(taskId: string): Promise<void> {
+  async delete(taskId: string, options?: TaskMutationOptions): Promise<void> {
     const location = await this.findTaskById(taskId);
 
     if (!location) {
@@ -292,7 +296,7 @@ export class TaskService {
         updated_at: new Date().toISOString(),
         tasks: taskFile.tasks.filter((task) => task.id !== taskId),
       },
-      taskFile.revision,
+      options?.expectedRevision ?? taskFile.revision,
     );
   }
 }

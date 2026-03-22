@@ -57,7 +57,7 @@ export class ProjectService {
     return master?.projects.find((project) => project.id === projectId) ?? null;
   }
 
-  async create(input: CreateProjectInput): Promise<Project> {
+  async create(input: CreateProjectInput, expectedRevision?: string): Promise<Project> {
     const payload = createProjectInputSchema.parse(input);
     const master = await this.projectRepository.getMaster();
 
@@ -86,11 +86,11 @@ export class ProjectService {
       projects: [...master.projects, project],
     };
 
-    await this.projectRepository.save(updatedMaster, master.revision);
+    await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
     return project;
   }
 
-  async update(projectId: string, input: UpdateProjectInput): Promise<Project> {
+  async update(projectId: string, input: UpdateProjectInput, expectedRevision?: string): Promise<Project> {
     const payload = updateProjectInputSchema.parse(input);
     const master = await this.projectRepository.getMaster();
 
@@ -125,11 +125,11 @@ export class ProjectService {
       projects: master.projects.map((project) => (project.id === projectId ? updatedProject : project)),
     };
 
-    await this.projectRepository.save(updatedMaster, master.revision);
+    await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
     return updatedProject;
   }
 
-  async delete(projectId: string): Promise<{ deletedProjectIds: string[] }> {
+  async delete(projectId: string, expectedRevision?: string): Promise<{ deletedProjectIds: string[] }> {
     if (SYSTEM_PROJECT_IDS.includes(projectId as (typeof SYSTEM_PROJECT_IDS)[number])) {
       throw new Error("System project cannot be deleted");
     }
@@ -151,7 +151,7 @@ export class ProjectService {
       projects: master.projects.filter((project) => !deletedProjectIds.includes(project.id)),
     };
 
-    await this.projectRepository.save(updatedMaster, master.revision);
+    await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
     await Promise.all(deletedProjectIds.map((id) => this.taskRepository.deleteByProjectId(id)));
 
     return {

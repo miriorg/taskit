@@ -21,7 +21,7 @@ export class TagService {
     return master?.tags.find((tag) => tag.id === tagId) ?? null;
   }
 
-  async create(input: CreateTagInput): Promise<Tag> {
+  async create(input: CreateTagInput, expectedRevision?: string): Promise<Tag> {
     const payload = createTagInputSchema.parse(input);
     const master = await this.tagRepository.getMaster();
 
@@ -47,13 +47,13 @@ export class TagService {
         updated_at: now,
         tags: [...master.tags, tag],
       },
-      master.revision,
+      expectedRevision ?? master.revision,
     );
 
     return tag;
   }
 
-  async update(tagId: string, input: UpdateTagInput): Promise<Tag> {
+  async update(tagId: string, input: UpdateTagInput, expectedRevision?: string): Promise<Tag> {
     const payload = updateTagInputSchema.parse(input);
     const master = await this.tagRepository.getMaster();
 
@@ -83,13 +83,13 @@ export class TagService {
         updated_at: updated.updated_at,
         tags: master.tags.map((tag) => (tag.id === tagId ? updated : tag)),
       },
-      master.revision,
+      expectedRevision ?? master.revision,
     );
 
     return updated;
   }
 
-  async delete(tagId: string): Promise<void> {
+  async delete(tagId: string, expectedRevision?: string): Promise<void> {
     const master = await this.tagRepository.getMaster();
 
     if (!master) {
@@ -106,7 +106,7 @@ export class TagService {
         updated_at: new Date().toISOString(),
         tags: master.tags.filter((tag) => tag.id !== tagId),
       },
-      master.revision,
+      expectedRevision ?? master.revision,
     );
   }
 }

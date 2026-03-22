@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 
-import type { Project, Tag, Task, TaskListResponse, View } from "@/types";
+import type { FileRevisionMap, Project, ProjectListResponse, Tag, TagListResponse, Task, TaskListResponse, View, ViewListResponse } from "@/types";
 import { INBOX_PROJECT_ID } from "@/lib/utils/system-projects";
 
 type WorkspaceState = {
@@ -12,6 +12,7 @@ type WorkspaceState = {
   views: View[];
   tasks: TaskListResponse;
   currentView: View | null;
+  revisions: FileRevisionMap;
 };
 
 const emptyTaskListResponse: TaskListResponse = {
@@ -20,6 +21,64 @@ const emptyTaskListResponse: TaskListResponse = {
   completedItems: [],
   revisions: {},
 };
+
+type ViewDraft = {
+  name: string;
+  filters: {
+    due: "today" | "overdue" | "any" | "none";
+    project_ids: string[];
+    tag_ids: string[];
+    include_project_descendants: boolean;
+    query: string;
+  };
+  sort: {
+    field: "due_date" | "created_at" | "updated_at" | "priority" | "title";
+    direction: "asc" | "desc";
+  };
+  display_options: {
+    show_completed: boolean;
+  };
+};
+
+function createDefaultViewDraft(projectId?: string): ViewDraft {
+  return {
+    name: "",
+    filters: {
+      due: "any",
+      project_ids: projectId ? [projectId] : [],
+      tag_ids: [],
+      include_project_descendants: Boolean(projectId),
+      query: "",
+    },
+    sort: {
+      field: "due_date",
+      direction: "asc",
+    },
+    display_options: {
+      show_completed: false,
+    },
+  };
+}
+
+function createViewDraftFromView(view: View): ViewDraft {
+  return {
+    name: view.name,
+    filters: {
+      due: view.filters.due ?? "any",
+      project_ids: view.filters.project_ids,
+      tag_ids: view.filters.tag_ids,
+      include_project_descendants: view.filters.include_project_descendants ?? false,
+      query: view.filters.query ?? "",
+    },
+    sort: {
+      field: view.sort.field,
+      direction: view.sort.direction,
+    },
+    display_options: {
+      show_completed: view.display_options.show_completed,
+    },
+  };
+}
 
 async function readJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
@@ -59,6 +118,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       views: [],
       tasks: emptyTaskListResponse,
       currentView: null,
+      revisions: {},
   });
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
@@ -67,13 +127,36 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [projectName, setProjectName] = useState("");
   const [projectColor, setProjectColor] = useState("#ff8080");
   const [tagName, setTagName] = useState("");
-  const [viewName, setViewName] = useState("");
+  const [viewDraft, setViewDraft] = useState<ViewDraft>(() => createDefaultViewDraft(projectId));
   const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [projectRename, setProjectRename] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const withExpectedRevision = (revisionKey: keyof FileRevisionMap | `task:${string}` | undefined, init?: RequestInit): RequestInit => {
+    const headers = new Headers(init?.headers);
+    const revision = revisionKey ? workspace.revisions[revisionKey] : undefined;
+
+    if (revision) {
+      headers.set("If-Match", revision);
+    }
+
+    return {
+      ...init,
+      headers,
+    };
+  };
+
+  const withJsonRevision = (revisionKey: keyof FileRevisionMap | `task:${string}` | undefined, init?: RequestInit): RequestInit =>
+    withExpectedRevision(revisionKey, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers ? Object.fromEntries(new Headers(init.headers).entries()) : {}),
+      },
+    });
 
   const refresh = async () => {
     const resolvedProjectId = projectId ?? INBOX_PROJECT_ID;
@@ -92,9 +175,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           }).toString()}`)
         : readJson<TaskListResponse>(`/api/tasks?projectId=${resolvedProjectId}`);
     const [projects, tags, views, tasks] = await Promise.all([
-      readJson<{ projects: Project[] }>("/api/projects"),
-      readJson<{ tags: Tag[] }>("/api/tags"),
-      readJson<{ views: View[] }>("/api/views"),
+      readJson<ProjectListResponse>("/api/projects"),
+      readJson<TagListResponse>("/api/tags"),
+      readJson<ViewListResponse>("/api/views"),
       taskRequest,
     ]);
     const currentView = viewId ? views.views.find((view) => view.id === viewId) ?? null : null;
@@ -105,6 +188,12 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       views: views.views,
       tasks,
       currentView,
+      revisions: {
+        ...projects.revisions,
+        ...tags.revisions,
+        ...views.revisions,
+        ...tasks.revisions,
+      },
     });
   };
 
@@ -118,6 +207,15 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       setProjectRename(currentProject?.name ?? "");
     }
   }, [projectId, workspace.projects]);
+
+  useEffect(() => {
+    if (viewId && workspace.currentView) {
+      setViewDraft(createViewDraftFromView(workspace.currentView));
+      return;
+    }
+
+    setViewDraft(createDefaultViewDraft(projectId));
+  }, [projectId, viewId, workspace.currentView]);
 
   const run = (action: () => Promise<void>) => {
     startTransition(() => {
@@ -150,6 +248,18 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     );
   };
 
+  const toggleViewFilterId = (target: "project_ids" | "tag_ids", value: string, checked: boolean) => {
+    setViewDraft((current) => ({
+      ...current,
+      filters: {
+        ...current.filters,
+        [target]: checked
+          ? [...current.filters[target], value]
+          : current.filters[target].filter((id) => id !== value),
+      },
+    }));
+  };
+
   const openTaskEditor = (taskId: string) => {
     run(async () => {
       const task = await readJson<Task>(`/api/tasks/${taskId}`);
@@ -179,8 +289,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               event.preventDefault();
               run(async () => {
                 await readJson("/api/projects", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                  ...withJsonRevision("project", { method: "POST" }),
                   body: JSON.stringify({
                     name: projectName,
                     color: projectColor,
@@ -210,7 +319,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   type="button"
                   onClick={() =>
                     run(async () => {
-                      await fetch(`/api/tags/${tag.id}`, { method: "DELETE" });
+                      await fetch(`/api/tags/${tag.id}`, withExpectedRevision("tag", { method: "DELETE" }));
                       await refresh();
                       setMessage("Tag deleted");
                     })
@@ -227,8 +336,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               event.preventDefault();
               run(async () => {
                 await readJson("/api/tags", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                  ...withJsonRevision("tag", { method: "POST" }),
                   body: JSON.stringify({ name: tagName }),
                 });
                 setTagName("");
@@ -259,31 +367,131 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               event.preventDefault();
               run(async () => {
                 await readJson("/api/views", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                  ...withJsonRevision("view", { method: "POST" }),
                   body: JSON.stringify({
-                    name: viewName,
+                    name: viewDraft.name,
                     filters: {
-                      project_ids: projectId ? [projectId] : [],
-                      tag_ids: [],
+                      ...viewDraft.filters,
+                      query: viewDraft.filters.query.trim() || undefined,
                     },
-                    sort: {
-                      field: "due_date",
-                      direction: "asc",
-                    },
-                    display_options: {
-                      show_completed: false,
-                    },
+                    sort: viewDraft.sort,
+                    display_options: viewDraft.display_options,
                   }),
                 });
-                setViewName("");
+                setViewDraft(createDefaultViewDraft(projectId));
                 await refresh();
                 setMessage("View created");
               });
             }}
           >
-            <input value={viewName} onChange={(event) => setViewName(event.target.value)} placeholder="New view" />
-            <button disabled={isPending || !viewName.trim()} type="submit">
+            <input
+              value={viewDraft.name}
+              onChange={(event) => setViewDraft((current) => ({ ...current, name: event.target.value }))}
+              placeholder="New view"
+            />
+            <input
+              value={viewDraft.filters.query}
+              onChange={(event) =>
+                setViewDraft((current) => ({
+                  ...current,
+                  filters: {
+                    ...current.filters,
+                    query: event.target.value,
+                  },
+                }))
+              }
+              placeholder="Filter by text"
+            />
+            <select
+              value={viewDraft.filters.due}
+              onChange={(event) =>
+                setViewDraft((current) => ({
+                  ...current,
+                  filters: {
+                    ...current.filters,
+                    due: event.target.value as ViewDraft["filters"]["due"],
+                  },
+                }))
+              }
+            >
+              <option value="any">Any due date</option>
+              <option value="today">Due today</option>
+              <option value="overdue">Overdue</option>
+              <option value="none">No due date</option>
+            </select>
+            <select
+              value={`${viewDraft.sort.field}:${viewDraft.sort.direction}`}
+              onChange={(event) => {
+                const [field, direction] = event.target.value.split(":") as [ViewDraft["sort"]["field"], ViewDraft["sort"]["direction"]];
+                setViewDraft((current) => ({
+                  ...current,
+                  sort: { field, direction },
+                }));
+              }}
+            >
+              <option value="due_date:asc">Due date asc</option>
+              <option value="due_date:desc">Due date desc</option>
+              <option value="priority:desc">Priority desc</option>
+              <option value="priority:asc">Priority asc</option>
+              <option value="title:asc">Title asc</option>
+              <option value="updated_at:desc">Updated desc</option>
+            </select>
+            <label className="checkbox-item">
+              <input
+                checked={viewDraft.display_options.show_completed}
+                type="checkbox"
+                onChange={(event) =>
+                  setViewDraft((current) => ({
+                    ...current,
+                    display_options: {
+                      show_completed: event.target.checked,
+                    },
+                  }))
+                }
+              />
+              <span>Show completed</span>
+            </label>
+            <label className="checkbox-item">
+              <input
+                checked={viewDraft.filters.include_project_descendants}
+                type="checkbox"
+                onChange={(event) =>
+                  setViewDraft((current) => ({
+                    ...current,
+                    filters: {
+                      ...current.filters,
+                      include_project_descendants: event.target.checked,
+                    },
+                  }))
+                }
+              />
+              <span>Include child projects</span>
+            </label>
+            <div className="checkbox-grid">
+              {workspace.projects.map((project) => (
+                <label key={project.id} className="checkbox-item">
+                  <input
+                    checked={viewDraft.filters.project_ids.includes(project.id)}
+                    type="checkbox"
+                    onChange={(event) => toggleViewFilterId("project_ids", project.id, event.target.checked)}
+                  />
+                  <span>{project.name}</span>
+                </label>
+              ))}
+            </div>
+            <div className="checkbox-grid">
+              {workspace.tags.map((tag) => (
+                <label key={tag.id} className="checkbox-item">
+                  <input
+                    checked={viewDraft.filters.tag_ids.includes(tag.id)}
+                    type="checkbox"
+                    onChange={(event) => toggleViewFilterId("tag_ids", tag.id, event.target.checked)}
+                  />
+                  <span>#{tag.name}</span>
+                </label>
+              ))}
+            </div>
+            <button disabled={isPending || !viewDraft.name.trim()} type="submit">
               Add view
             </button>
           </form>
@@ -300,8 +508,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 event.preventDefault();
                 run(async () => {
                   await readJson(`/api/projects/${projectId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
+                    ...withJsonRevision("project", { method: "PATCH" }),
                     body: JSON.stringify({ name: projectRename }),
                   });
                   await refresh();
@@ -318,7 +525,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 type="button"
                 onClick={() =>
                   run(async () => {
-                    await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
+                    await fetch(`/api/projects/${projectId}`, withExpectedRevision("project", { method: "DELETE" }));
                     window.location.href = "/inbox";
                   })
                 }
@@ -366,8 +573,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               event.preventDefault();
               run(async () => {
                 await readJson("/api/tasks", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                  ...withJsonRevision(`task:${projectId ?? INBOX_PROJECT_ID}`, { method: "POST" }),
                   body: JSON.stringify({
                     title: taskTitle,
                     due_date: fromDateTimeLocal(taskDueDate),
@@ -434,8 +640,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     onClick={() =>
                       run(async () => {
                         await readJson(`/api/tasks/${task.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
+                          ...withJsonRevision(`task:${task.project.id}`, { method: "PATCH" }),
                           body: JSON.stringify({
                             status: task.status === "done" ? "todo" : "done",
                           }),
@@ -454,7 +659,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     type="button"
                     onClick={() =>
                       run(async () => {
-                        await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
+                        await fetch(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
                         setSelectedTask((current) => (current?.id === task.id ? null : current));
                         await refresh();
                         setMessage("Task deleted");
@@ -490,8 +695,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     onClick={() =>
                       run(async () => {
                         await readJson(`/api/tasks/${task.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
+                          ...withJsonRevision(`task:${task.project.id}`, { method: "PATCH" }),
                           body: JSON.stringify({
                             status: "todo",
                           }),
@@ -510,7 +714,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     type="button"
                     onClick={() =>
                       run(async () => {
-                        await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
+                        await fetch(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
                         setSelectedTask((current) => (current?.id === task.id ? null : current));
                         await refresh();
                         setMessage("Task deleted");
@@ -526,7 +730,25 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           {workspace.tasks.completedItems.length === 0 ? <p>No completed tasks.</p> : null}
         </section>
 
-        {message ? <p className="message">{message}</p> : null}
+        {message ? (
+          <div className="stack">
+            <p className="message">{message}</p>
+            {message.toLowerCase().includes("reload") || message.toLowerCase().includes("updated elsewhere") ? (
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={() =>
+                  run(async () => {
+                    await refresh();
+                    setMessage("Reloaded latest data");
+                  })
+                }
+              >
+                Reload latest data
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </main>
 
       <section className="workspace__detail">
@@ -534,13 +756,154 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           <h2>{viewId ? workspace.currentView?.name ?? "View" : selectedTask ? "Edit task" : "Details"}</h2>
           {viewId ? (
             workspace.currentView ? (
-              <div className="stack">
-                <p>Saved filter view.</p>
-                <p>Projects: {workspace.currentView.filters.project_ids.length > 0 ? workspace.currentView.filters.project_ids.length : "All"}</p>
-                <p>Tags: {workspace.currentView.filters.tag_ids.length > 0 ? workspace.currentView.filters.tag_ids.length : "All"}</p>
-                <p>Query: {workspace.currentView.filters.query?.trim() ? workspace.currentView.filters.query : "None"}</p>
-                <p>Sort: {workspace.currentView.sort.field} / {workspace.currentView.sort.direction}</p>
-              </div>
+              <form
+                className="stack"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  run(async () => {
+                    await readJson(`/api/views/${workspace.currentView?.id}`, {
+                      ...withJsonRevision("view", { method: "PATCH" }),
+                      body: JSON.stringify({
+                        name: viewDraft.name,
+                        filters: {
+                          ...viewDraft.filters,
+                          query: viewDraft.filters.query.trim() || undefined,
+                        },
+                        sort: viewDraft.sort,
+                        display_options: viewDraft.display_options,
+                      }),
+                    });
+                    await refresh();
+                    setMessage("View updated");
+                  });
+                }}
+              >
+                <input
+                  value={viewDraft.name}
+                  onChange={(event) => setViewDraft((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="View name"
+                />
+                <input
+                  value={viewDraft.filters.query}
+                  onChange={(event) =>
+                    setViewDraft((current) => ({
+                      ...current,
+                      filters: {
+                        ...current.filters,
+                        query: event.target.value,
+                      },
+                    }))
+                  }
+                  placeholder="Text filter"
+                />
+                <select
+                  value={viewDraft.filters.due}
+                  onChange={(event) =>
+                    setViewDraft((current) => ({
+                      ...current,
+                      filters: {
+                        ...current.filters,
+                        due: event.target.value as ViewDraft["filters"]["due"],
+                      },
+                    }))
+                  }
+                >
+                  <option value="any">Any due date</option>
+                  <option value="today">Due today</option>
+                  <option value="overdue">Overdue</option>
+                  <option value="none">No due date</option>
+                </select>
+                <select
+                  value={`${viewDraft.sort.field}:${viewDraft.sort.direction}`}
+                  onChange={(event) => {
+                    const [field, direction] = event.target.value.split(":") as [ViewDraft["sort"]["field"], ViewDraft["sort"]["direction"]];
+                    setViewDraft((current) => ({
+                      ...current,
+                      sort: { field, direction },
+                    }));
+                  }}
+                >
+                  <option value="due_date:asc">Due date asc</option>
+                  <option value="due_date:desc">Due date desc</option>
+                  <option value="priority:desc">Priority desc</option>
+                  <option value="priority:asc">Priority asc</option>
+                  <option value="title:asc">Title asc</option>
+                  <option value="updated_at:desc">Updated desc</option>
+                </select>
+                <label className="checkbox-item">
+                  <input
+                    checked={viewDraft.display_options.show_completed}
+                    type="checkbox"
+                    onChange={(event) =>
+                      setViewDraft((current) => ({
+                        ...current,
+                        display_options: {
+                          show_completed: event.target.checked,
+                        },
+                      }))
+                    }
+                  />
+                  <span>Show completed</span>
+                </label>
+                <label className="checkbox-item">
+                  <input
+                    checked={viewDraft.filters.include_project_descendants}
+                    type="checkbox"
+                    onChange={(event) =>
+                      setViewDraft((current) => ({
+                        ...current,
+                        filters: {
+                          ...current.filters,
+                          include_project_descendants: event.target.checked,
+                        },
+                      }))
+                    }
+                  />
+                  <span>Include child projects</span>
+                </label>
+                <div className="checkbox-grid">
+                  {workspace.projects.map((project) => (
+                    <label key={project.id} className="checkbox-item">
+                      <input
+                        checked={viewDraft.filters.project_ids.includes(project.id)}
+                        type="checkbox"
+                        onChange={(event) => toggleViewFilterId("project_ids", project.id, event.target.checked)}
+                      />
+                      <span>{project.name}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="checkbox-grid">
+                  {workspace.tags.map((tag) => (
+                    <label key={tag.id} className="checkbox-item">
+                      <input
+                        checked={viewDraft.filters.tag_ids.includes(tag.id)}
+                        type="checkbox"
+                        onChange={(event) => toggleViewFilterId("tag_ids", tag.id, event.target.checked)}
+                      />
+                      <span>#{tag.name}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="inline-form">
+                  <button disabled={isPending || !viewDraft.name.trim()} type="submit">
+                    Save view
+                  </button>
+                  <button
+                    className="button-secondary"
+                    disabled={isPending}
+                    type="button"
+                    onClick={() =>
+                      run(async () => {
+                        await fetch(`/api/views/${workspace.currentView?.id}`, withExpectedRevision("view", { method: "DELETE" }));
+                        window.location.href = "/inbox";
+                      })
+                    }
+                  >
+                    Delete view
+                  </button>
+                </div>
+              </form>
             ) : (
               <p>View not found.</p>
             )
@@ -551,8 +914,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 event.preventDefault();
                 run(async () => {
                   await readJson(`/api/tasks/${selectedTask.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
+                    ...withJsonRevision(`task:${selectedTask.project_id}`, { method: "PATCH" }),
                     body: JSON.stringify({
                       title: selectedTask.title,
                       due_date: selectedTask.due_date,
