@@ -274,6 +274,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     : projectId
       ? workspace.projects.find((project) => project.id === projectId)?.name ?? "Project"
       : "Inbox";
+  const shouldShowCompletedSection = !projectId;
 
   return (
     <div className="workspace">
@@ -681,69 +682,73 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           </ul>
           {workspace.tasks.todoItems.length === 0 ? <p>No open tasks.</p> : null}
 
-          <button
-            aria-expanded={!isCompletedCollapsed}
-            className="section-toggle"
-            type="button"
-            onClick={() => setIsCompletedCollapsed((current) => !current)}
-          >
-            {`${isCompletedCollapsed ? "▶" : "▼"} 完了(${workspace.tasks.completedItems.length}件)`}
-          </button>
-          {!isCompletedCollapsed ? (
+          {shouldShowCompletedSection ? (
             <>
-              <ul className="task-list">
-                {workspace.tasks.completedItems.map((task) => (
-                  <li key={task.id} className="task-row task-row--completed">
-                    <div>
-                      <strong>{task.title}</strong>
-                      <div className="task-meta">
-                        <span>{task.project.name}</span>
-                        {task.dueDate ? <span>Due {new Date(task.dueDate).toLocaleString()}</span> : null}
-                        {task.priority !== null ? <span>P{task.priority}</span> : null}
-                        {task.tags.map((tag) => (
-                          <span key={tag.id}>#{tag.name}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="task-actions">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          run(async () => {
-                            await readJson(`/api/tasks/${task.id}`, {
-                              ...withJsonRevision(`task:${task.project.id}`, { method: "PATCH" }),
-                              body: JSON.stringify({
-                                status: "todo",
-                              }),
-                            });
-                            await refresh();
-                            setMessage("Task reopened");
-                          })
-                        }
-                      >
-                        Reopen
-                      </button>
-                      <button type="button" onClick={() => openTaskEditor(task.id)}>
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          run(async () => {
-                            await fetch(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
-                            setSelectedTask((current) => (current?.id === task.id ? null : current));
-                            await refresh();
-                            setMessage("Task deleted");
-                          })
-                        }
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-              {workspace.tasks.completedItems.length === 0 ? <p>No completed tasks.</p> : null}
+              <button
+                aria-expanded={!isCompletedCollapsed}
+                className="section-toggle"
+                type="button"
+                onClick={() => setIsCompletedCollapsed((current) => !current)}
+              >
+                {`${isCompletedCollapsed ? "▶" : "▼"} 完了(${workspace.tasks.completedItems.length}件)`}
+              </button>
+              {!isCompletedCollapsed ? (
+                <>
+                  <ul className="task-list">
+                    {workspace.tasks.completedItems.map((task) => (
+                      <li key={task.id} className="task-row task-row--completed">
+                        <div>
+                          <strong>{task.title}</strong>
+                          <div className="task-meta">
+                            <span>{task.project.name}</span>
+                            {task.dueDate ? <span>Due {new Date(task.dueDate).toLocaleString()}</span> : null}
+                            {task.priority !== null ? <span>P{task.priority}</span> : null}
+                            {task.tags.map((tag) => (
+                              <span key={tag.id}>#{tag.name}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="task-actions">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              run(async () => {
+                                await readJson(`/api/tasks/${task.id}`, {
+                                  ...withJsonRevision(`task:${task.project.id}`, { method: "PATCH" }),
+                                  body: JSON.stringify({
+                                    status: "todo",
+                                  }),
+                                });
+                                await refresh();
+                                setMessage("Task reopened");
+                              })
+                            }
+                          >
+                            Reopen
+                          </button>
+                          <button type="button" onClick={() => openTaskEditor(task.id)}>
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              run(async () => {
+                                await fetch(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
+                                setSelectedTask((current) => (current?.id === task.id ? null : current));
+                                await refresh();
+                                setMessage("Task deleted");
+                              })
+                            }
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  {workspace.tasks.completedItems.length === 0 ? <p>No completed tasks.</p> : null}
+                </>
+              ) : null}
             </>
           ) : null}
         </section>
