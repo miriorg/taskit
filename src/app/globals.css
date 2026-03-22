@@ -10,8 +10,8 @@ body {
 }
 
 body {
-  background: #f4f1ea;
-  color: #1f2520;
+  background: #dfe9ef;
+  color: #1b2530;
 }
 
 a {
@@ -35,16 +35,16 @@ select {
   display: grid;
   gap: 16px;
   padding: 20px;
-  background: linear-gradient(180deg, #18392b 0%, #224d39 100%);
-  color: #f7f3ea;
+  background: linear-gradient(180deg, #173049 0%, #264b68 100%);
+  color: #eef6fb;
 }
 
 .workspace__sidebar .panel {
-  color: #1f2520;
+  color: #1b2530;
 }
 
 .workspace__sidebar a {
-  color: #1f2520;
+  color: #1b2530;
 }
 
 .workspace__main {
@@ -59,10 +59,10 @@ select {
 }
 
 .panel {
-  border: 1px solid rgba(24, 57, 43, 0.12);
+  border: 1px solid rgba(23, 48, 73, 0.16);
   border-radius: 16px;
   padding: 16px;
-  background: rgba(255, 252, 245, 0.92);
+  background: rgba(248, 251, 253, 0.96);
 }
 
 .stack {
@@ -99,7 +99,7 @@ select {
   gap: 6px;
   border-radius: 999px;
   padding: 6px 10px;
-  background: #e5dcc9;
+  background: #d8e7f1;
 }
 
 .task-list {
@@ -114,10 +114,10 @@ select {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  border: 1px solid rgba(24, 57, 43, 0.12);
+  border: 1px solid rgba(23, 48, 73, 0.14);
   border-radius: 12px;
   padding: 12px;
-  background: #fffdf8;
+  background: #ffffff;
 }
 
 .task-meta {
@@ -125,7 +125,7 @@ select {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 6px;
-  color: #526057;
+  color: #4f6475;
   font-size: 14px;
 }
 
@@ -136,7 +136,7 @@ select {
 
 .message {
   margin: 0;
-  color: #1e6a42;
+  color: #1e5f78;
   font-weight: 600;
 }
 
@@ -150,23 +150,23 @@ select {
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid rgba(24, 57, 43, 0.12);
+  border: 1px solid rgba(23, 48, 73, 0.14);
   border-radius: 10px;
   padding: 8px 10px;
-  background: #fffdf8;
+  background: #ffffff;
 }
 
 input,
 button,
 select {
-  border: 1px solid rgba(24, 57, 43, 0.16);
+  border: 1px solid rgba(23, 48, 73, 0.18);
   border-radius: 10px;
   padding: 10px 12px;
 }
 
 button {
-  background: #d9683f;
-  color: #fff8f3;
+  background: #d1693f;
+  color: #fff9f3;
   cursor: pointer;
 }
 
