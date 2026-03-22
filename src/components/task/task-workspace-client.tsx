@@ -141,7 +141,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     const revision = revisionKey ? workspace.revisions[revisionKey] : undefined;
 
     if (revision) {
-      headers.set("If-Match", revision);
+      headers.set("X-Taskit-Revision", revision);
     }
 
     return {
