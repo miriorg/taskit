@@ -120,6 +120,10 @@ select {
   background: #ffffff;
 }
 
+.task-row--completed {
+  opacity: 0.8;
+}
+
 .task-meta {
   display: flex;
   flex-wrap: wrap;
@@ -132,6 +136,21 @@ select {
 .task-actions {
   display: flex;
   gap: 8px;
+}
+
+.section-caption {
+  margin: 0 0 12px;
+  color: #466173;
+  font-size: 14px;
+}
+
+.section-heading {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.section-heading--completed {
+  margin-top: 20px;
 }
 
 .message {

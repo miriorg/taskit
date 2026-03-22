@@ -10,8 +10,15 @@ type WorkspaceState = {
   projects: Project[];
   tags: Tag[];
   views: View[];
-  tasks: TaskListResponse["items"];
+  tasks: TaskListResponse;
   currentView: View | null;
+};
+
+const emptyTaskListResponse: TaskListResponse = {
+  items: [],
+  todoItems: [],
+  completedItems: [],
+  revisions: {},
 };
 
 async function readJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
@@ -47,11 +54,11 @@ function fromDateTimeLocal(localValue: string): string | null {
 
 export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string; viewId?: string }) {
   const [workspace, setWorkspace] = useState<WorkspaceState>({
-    projects: [],
-    tags: [],
-    views: [],
-    tasks: [],
-    currentView: null,
+      projects: [],
+      tags: [],
+      views: [],
+      tasks: emptyTaskListResponse,
+      currentView: null,
   });
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
@@ -61,22 +68,34 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [projectColor, setProjectColor] = useState("#ff8080");
   const [tagName, setTagName] = useState("");
   const [viewName, setViewName] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [projectRename, setProjectRename] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const refresh = async () => {
-    const taskEndpoint = viewId
-      ? `/api/views/${viewId}/query`
-      : projectId
-        ? `/api/tasks?projectId=${projectId}`
-        : `/api/tasks?projectId=${INBOX_PROJECT_ID}`;
+    const resolvedProjectId = projectId ?? INBOX_PROJECT_ID;
+    const trimmedSearchQuery = searchQuery.trim();
+    const taskRequest = viewId
+      ? readJson<TaskListResponse>(`/api/views/${viewId}/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: trimmedSearchQuery || undefined }),
+        })
+      : trimmedSearchQuery
+        ? readJson<TaskListResponse>(`/api/search?${new URLSearchParams({
+            query: trimmedSearchQuery,
+            projectId: resolvedProjectId,
+            includeCompleted: "true",
+          }).toString()}`)
+        : readJson<TaskListResponse>(`/api/tasks?projectId=${resolvedProjectId}`);
     const [projects, tags, views, tasks] = await Promise.all([
       readJson<{ projects: Project[] }>("/api/projects"),
       readJson<{ tags: Tag[] }>("/api/tags"),
       readJson<{ views: View[] }>("/api/views"),
-      readJson<TaskListResponse>(taskEndpoint, viewId ? { method: "POST" } : undefined),
+      taskRequest,
     ]);
     const currentView = viewId ? views.views.find((view) => view.id === viewId) ?? null : null;
 
@@ -84,14 +103,14 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       projects: projects.projects,
       tags: tags.tags,
       views: views.views,
-      tasks: tasks.items,
+      tasks,
       currentView,
     });
   };
 
   useEffect(() => {
     void refresh();
-  }, [projectId, viewId]);
+  }, [projectId, searchQuery, viewId]);
 
   useEffect(() => {
     if (projectId) {
@@ -312,6 +331,32 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           ) : (
             <p>Default project for uncategorized tasks.</p>
           )}
+          <form
+            className="inline-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setSearchQuery(searchDraft.trim());
+            }}
+          >
+            <input
+              value={searchDraft}
+              onChange={(event) => setSearchDraft(event.target.value)}
+              placeholder="Search tasks"
+            />
+            <button disabled={isPending} type="submit">
+              Search
+            </button>
+            <button
+              disabled={isPending || (!searchDraft && !searchQuery)}
+              type="button"
+              onClick={() => {
+                setSearchDraft("");
+                setSearchQuery("");
+              }}
+            >
+              Clear
+            </button>
+          </form>
         </header>
 
         <section className="panel">
@@ -366,8 +411,11 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         </section>
 
         <section className="panel">
+          {searchQuery ? <p className="section-caption">Search results for "{searchQuery}"</p> : null}
+
+          <h2 className="section-heading">Open tasks</h2>
           <ul className="task-list">
-            {workspace.tasks.map((task) => (
+            {workspace.tasks.todoItems.map((task) => (
               <li key={task.id} className="task-row">
                 <div>
                   <strong>{task.title}</strong>
@@ -419,7 +467,63 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               </li>
             ))}
           </ul>
-          {workspace.tasks.length === 0 ? <p>No tasks yet.</p> : null}
+          {workspace.tasks.todoItems.length === 0 ? <p>No open tasks.</p> : null}
+
+          <h2 className="section-heading section-heading--completed">Completed</h2>
+          <ul className="task-list">
+            {workspace.tasks.completedItems.map((task) => (
+              <li key={task.id} className="task-row task-row--completed">
+                <div>
+                  <strong>{task.title}</strong>
+                  <div className="task-meta">
+                    <span>{task.project.name}</span>
+                    {task.dueDate ? <span>Due {new Date(task.dueDate).toLocaleString()}</span> : null}
+                    {task.priority !== null ? <span>P{task.priority}</span> : null}
+                    {task.tags.map((tag) => (
+                      <span key={tag.id}>#{tag.name}</span>
+                    ))}
+                  </div>
+                </div>
+                <div className="task-actions">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      run(async () => {
+                        await readJson(`/api/tasks/${task.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            status: "todo",
+                          }),
+                        });
+                        await refresh();
+                        setMessage("Task reopened");
+                      })
+                    }
+                  >
+                    Reopen
+                  </button>
+                  <button type="button" onClick={() => openTaskEditor(task.id)}>
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      run(async () => {
+                        await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
+                        setSelectedTask((current) => (current?.id === task.id ? null : current));
+                        await refresh();
+                        setMessage("Task deleted");
+                      })
+                    }
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {workspace.tasks.completedItems.length === 0 ? <p>No completed tasks.</p> : null}
         </section>
 
         {message ? <p className="message">{message}</p> : null}
@@ -434,6 +538,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 <p>Saved filter view.</p>
                 <p>Projects: {workspace.currentView.filters.project_ids.length > 0 ? workspace.currentView.filters.project_ids.length : "All"}</p>
                 <p>Tags: {workspace.currentView.filters.tag_ids.length > 0 ? workspace.currentView.filters.tag_ids.length : "All"}</p>
+                <p>Query: {workspace.currentView.filters.query?.trim() ? workspace.currentView.filters.query : "None"}</p>
                 <p>Sort: {workspace.currentView.sort.field} / {workspace.currentView.sort.direction}</p>
               </div>
             ) : (

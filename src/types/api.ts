@@ -33,6 +33,8 @@ export type TaskListItemDto = {
 
 export type TaskListResponse = {
   items: TaskListItemDto[];
+  todoItems: TaskListItemDto[];
+  completedItems: TaskListItemDto[];
   revisions: FileRevisionMap;
 };
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { TaskService } from "@/lib/services/task-service";
+import { createTaskListResponse, TaskService } from "@/lib/services/task-service";
 import { ViewRepository } from "@/lib/repositories/view-repository";
 import { createViewInputSchema, updateViewInputSchema } from "@/lib/validators";
 import type { CreateViewInput, TaskListResponse, UpdateViewInput, View, ViewListResponse } from "@/types";
@@ -112,14 +112,18 @@ export class ViewService {
     );
   }
 
-  async query(viewId: string): Promise<TaskListResponse> {
+  async query(viewId: string, options?: { query?: string }): Promise<TaskListResponse> {
     const view = await this.get(viewId);
 
     if (!view) {
       throw new Error("View not found");
     }
 
-    const listResponse = await this.taskService.list();
+    const listResponse = await this.taskService.list({
+      query: options?.query,
+    });
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
     const filtered = listResponse.items.filter((item) => {
       if (view.filters.project_ids.length > 0 && !view.filters.project_ids.includes(item.project.id)) {
         return false;
@@ -133,12 +137,28 @@ export class ViewService {
         }
       }
 
-      if (view.filters.query) {
-        const query = view.filters.query.toLowerCase();
+      const query = view.filters.query?.trim().toLowerCase();
 
+      if (query) {
         if (!item.title.toLowerCase().includes(query)) {
           return false;
         }
+      }
+
+      if (view.filters.due === "today") {
+        if (!item.dueDate || item.dueDate.slice(0, 10) !== startOfToday.slice(0, 10)) {
+          return false;
+        }
+      }
+
+      if (view.filters.due === "overdue") {
+        if (!item.dueDate || item.dueDate >= startOfToday) {
+          return false;
+        }
+      }
+
+      if (view.filters.due === "none" && item.dueDate) {
+        return false;
       }
 
       return view.display_options.show_completed || item.status !== "done";
@@ -158,9 +178,6 @@ export class ViewService {
       return view.sort.direction === "asc" ? comparison : comparison * -1;
     });
 
-    return {
-      items,
-      revisions: listResponse.revisions,
-    };
+    return createTaskListResponse(items, listResponse.revisions);
   }
 }

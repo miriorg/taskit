@@ -11,7 +11,9 @@ export async function POST(_request: Request, { params }: RouteContext) {
   try {
     const viewService = new ViewService();
     const { viewId } = await params;
-    return Response.json(await viewService.query(viewId));
+    const requestBody = await _request.text();
+    const payload = requestBody ? (JSON.parse(requestBody) as { query?: string }) : undefined;
+    return Response.json(await viewService.query(viewId, payload));
   } catch (error) {
     return toErrorResponse(error);
   }

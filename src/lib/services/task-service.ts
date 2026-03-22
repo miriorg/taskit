@@ -12,6 +12,14 @@ type TaskLocation = {
   taskFileRevision?: string;
 };
 
+export type TaskListOptions = {
+  projectId?: string;
+  projectIds?: string[];
+  query?: string;
+  tagIds?: string[];
+  includeCompleted?: boolean;
+};
+
 function toTaskListItem(task: Task, projectMap: Map<string, { id: string; name: string; color: string }>, tagMap: Map<string, { id: string; name: string }>): TaskListItemDto {
   return {
     id: task.id,
@@ -28,6 +36,39 @@ function toTaskListItem(task: Task, projectMap: Map<string, { id: string; name: 
   };
 }
 
+function sortTaskItems(left: TaskListItemDto, right: TaskListItemDto): number {
+  if (!left.dueDate && !right.dueDate) {
+    return left.title.localeCompare(right.title);
+  }
+
+  if (!left.dueDate) {
+    return 1;
+  }
+
+  if (!right.dueDate) {
+    return -1;
+  }
+
+  const dueDateComparison = left.dueDate.localeCompare(right.dueDate);
+
+  if (dueDateComparison !== 0) {
+    return dueDateComparison;
+  }
+
+  return left.title.localeCompare(right.title);
+}
+
+export function createTaskListResponse(items: TaskListItemDto[], revisions: TaskListResponse["revisions"]): TaskListResponse {
+  const sortedItems = [...items].sort(sortTaskItems);
+
+  return {
+    items: sortedItems,
+    todoItems: sortedItems.filter((item) => item.status !== "done"),
+    completedItems: sortedItems.filter((item) => item.status === "done"),
+    revisions,
+  };
+}
+
 export class TaskService {
   constructor(
     private readonly taskRepository: TaskRepository = new TaskRepository(),
@@ -35,9 +76,13 @@ export class TaskService {
     private readonly tagRepository: TagRepository = new TagRepository(),
   ) {}
 
-  private async resolveProjectIds(projectId?: string): Promise<string[]> {
-    if (projectId) {
-      return [projectId];
+  private async resolveProjectIds(options?: Pick<TaskListOptions, "projectId" | "projectIds">): Promise<string[]> {
+    if (options?.projectIds && options.projectIds.length > 0) {
+      return options.projectIds;
+    }
+
+    if (options?.projectId) {
+      return [options.projectId];
     }
 
     const projectMaster = await this.projectRepository.getMaster();
@@ -62,32 +107,28 @@ export class TaskService {
     return null;
   }
 
-  async list(projectId?: string): Promise<TaskListResponse> {
+  async list(projectId?: string): Promise<TaskListResponse>;
+  async list(options?: TaskListOptions): Promise<TaskListResponse>;
+  async list(projectIdOrOptions?: string | TaskListOptions): Promise<TaskListResponse> {
+    const options = typeof projectIdOrOptions === "string"
+      ? { projectId: projectIdOrOptions }
+      : (projectIdOrOptions ?? {});
     const [projectMaster, tagMaster] = await Promise.all([
       this.projectRepository.getMaster(),
       this.tagRepository.getMaster(),
     ]);
-    const projectIds = projectId ? [projectId] : (projectMaster?.projects.map((project) => project.id) ?? []);
+    const projectIds = await this.resolveProjectIds(options);
     const taskFiles = await Promise.all(projectIds.map((id) => this.taskRepository.getByProjectId(id)));
     const projectMap = new Map((projectMaster?.projects ?? []).map((project) => [project.id, project]));
     const tagMap = new Map((tagMaster?.tags ?? []).map((tag) => [tag.id, tag]));
+    const normalizedQuery = options.query?.trim().toLowerCase();
+    const requiredTagIds = options.tagIds ?? [];
+    const includeCompleted = options.includeCompleted ?? true;
     const items = taskFiles
       .flatMap((taskFile) => taskFile.tasks)
-      .sort((left, right) => {
-        if (!left.due_date && !right.due_date) {
-          return left.created_at.localeCompare(right.created_at);
-        }
-
-        if (!left.due_date) {
-          return 1;
-        }
-
-        if (!right.due_date) {
-          return -1;
-        }
-
-        return left.due_date.localeCompare(right.due_date);
-      })
+      .filter((task) => includeCompleted || task.status !== "done")
+      .filter((task) => !normalizedQuery || task.title.toLowerCase().includes(normalizedQuery))
+      .filter((task) => requiredTagIds.every((tagId) => task.tag_ids.includes(tagId)))
       .map((task) => toTaskListItem(task, projectMap, tagMap));
     const revisions = {
       ...(projectMaster?.revision ? { project: projectMaster.revision } : {}),
@@ -95,10 +136,7 @@ export class TaskService {
       ...Object.fromEntries(taskFiles.flatMap((taskFile) => (taskFile.revision ? [[`task:${taskFile.project_id}`, taskFile.revision]] : []))),
     };
 
-    return {
-      items,
-      revisions,
-    };
+    return createTaskListResponse(items, revisions);
   }
 
   async get(taskId: string): Promise<Task | null> {
