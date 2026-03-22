@@ -221,7 +221,9 @@ export class TaskService {
     const sourceTaskFile = await this.taskRepository.getByProjectId(currentTask.project_id);
     const destinationProjectId = payload.status === "done"
       ? DONE_PROJECT_ID
-      : payload.project_id ?? currentTask.project_id;
+      : payload.status === "todo" && currentTask.project_id === DONE_PROJECT_ID && !payload.project_id
+        ? INBOX_PROJECT_ID
+        : payload.project_id ?? currentTask.project_id;
 
     if (!projectMaster.projects.some((project) => project.id === destinationProjectId)) {
       throw new Error("Project not found");
@@ -248,7 +250,7 @@ export class TaskService {
       priority: payload.priority ?? currentTask.priority,
       status: payload.status ?? currentTask.status,
       updated_at: now,
-      completed_at: payload.status === "done" ? now : currentTask.completed_at,
+      completed_at: payload.status === "done" ? now : payload.status === "todo" ? null : currentTask.completed_at,
     };
 
     if (destinationProjectId === currentTask.project_id) {

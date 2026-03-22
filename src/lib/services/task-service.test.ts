@@ -20,6 +20,11 @@ class TaskRepositoryStub {
       tasks: [],
     };
   }
+
+  async save(taskFile: TaskFile) {
+    this.files.set(taskFile.project_id, taskFile);
+    return taskFile;
+  }
 }
 
 class ProjectRepositoryStub {
@@ -179,5 +184,52 @@ describe("TaskService.list", () => {
 
     expect(result.items.map((task) => task.id)).toEqual(["task-1", "task-2"]);
     expect(result.completedItems).toEqual([]);
+  });
+});
+
+describe("TaskService.update", () => {
+  it("moves reopened tasks from done to inbox", async () => {
+    const taskRepository = new TaskRepositoryStub([
+      {
+        schema_version: 1,
+        updated_at: "2026-03-22T00:00:00.000Z",
+        project_id: INBOX_PROJECT_ID,
+        tasks: [],
+      },
+      {
+        schema_version: 1,
+        updated_at: "2026-03-22T00:00:00.000Z",
+        project_id: DONE_PROJECT_ID,
+        tasks: [
+          {
+            id: "task-done",
+            project_id: DONE_PROJECT_ID,
+            title: "Archive notes",
+            description: null,
+            due_date: null,
+            priority: 1,
+            status: "done",
+            tag_ids: ["tag-work"],
+            reminders: [],
+            created_at: "2026-03-21T00:00:00.000Z",
+            updated_at: "2026-03-21T00:00:00.000Z",
+            completed_at: "2026-03-21T04:00:00.000Z",
+          },
+        ],
+      },
+    ]);
+    const service = new TaskService(
+      taskRepository as never,
+      new ProjectRepositoryStub(projectMaster) as never,
+      new TagRepositoryStub(tagMaster) as never,
+    );
+
+    const updated = await service.update("task-done", { status: "todo" });
+
+    expect(updated.project_id).toBe(INBOX_PROJECT_ID);
+    expect(updated.status).toBe("todo");
+    expect(updated.completed_at).toBeNull();
+    expect((await taskRepository.getByProjectId(DONE_PROJECT_ID)).tasks).toHaveLength(0);
+    expect((await taskRepository.getByProjectId(INBOX_PROJECT_ID)).tasks.map((task) => task.id)).toContain("task-done");
   });
 });
