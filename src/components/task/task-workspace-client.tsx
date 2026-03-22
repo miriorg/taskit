@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 
 import type { FileRevisionMap, Project, ProjectListResponse, Tag, TagListResponse, Task, TaskListResponse, View, ViewListResponse } from "@/types";
-import { INBOX_PROJECT_ID } from "@/lib/utils/system-projects";
+import { DONE_PROJECT_ID, INBOX_PROJECT_ID } from "@/lib/utils/system-projects";
 
 type WorkspaceState = {
   projects: Project[];
@@ -274,6 +274,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     : projectId
       ? workspace.projects.find((project) => project.id === projectId)?.name ?? "Project"
       : "Inbox";
+  const isDoneProjectPage = projectId === DONE_PROJECT_ID;
   const shouldShowCompletedSection = !projectId;
 
   return (
@@ -575,53 +576,57 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         </header>
 
         <section className="panel">
-          <form
-            className="stack"
-            onSubmit={(event) => {
-              event.preventDefault();
-              run(async () => {
-                await readJson("/api/tasks", {
-                  ...withJsonRevision(`task:${projectId ?? INBOX_PROJECT_ID}`, { method: "POST" }),
-                  body: JSON.stringify({
-                    title: taskTitle,
-                    due_date: fromDateTimeLocal(taskDueDate),
-                    priority: taskPriority === "" ? null : Number(taskPriority),
-                    tag_ids: taskTagIds,
-                    project_id: projectId ?? INBOX_PROJECT_ID,
-                  }),
+          {!isDoneProjectPage ? (
+            <form
+              className="stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                run(async () => {
+                  await readJson("/api/tasks", {
+                    ...withJsonRevision(`task:${projectId ?? INBOX_PROJECT_ID}`, { method: "POST" }),
+                    body: JSON.stringify({
+                      title: taskTitle,
+                      due_date: fromDateTimeLocal(taskDueDate),
+                      priority: taskPriority === "" ? null : Number(taskPriority),
+                      tag_ids: taskTagIds,
+                      project_id: projectId ?? INBOX_PROJECT_ID,
+                    }),
+                  });
+                  resetCreateTaskForm();
+                  await refresh();
+                  setMessage("Task created");
                 });
-                resetCreateTaskForm();
-                await refresh();
-                setMessage("Task created");
-              });
-            }}
-          >
-            <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="New task" />
-            <input type="datetime-local" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} />
-            <select value={taskPriority} onChange={(event) => setTaskPriority(event.target.value)}>
-              <option value="">Priority</option>
-              {Array.from({ length: 10 }, (_, value) => (
-                <option key={value} value={value}>
-                  P{value}
-                </option>
-              ))}
-            </select>
-            <div className="checkbox-grid">
-              {workspace.tags.map((tag) => (
-                <label key={tag.id} className="checkbox-item">
-                  <input
-                    checked={taskTagIds.includes(tag.id)}
-                    type="checkbox"
-                    onChange={(event) => toggleTaskTag(tag.id, event.target.checked, "create")}
-                  />
-                  <span>{tag.name}</span>
-                </label>
-              ))}
-            </div>
-            <button disabled={isPending || !taskTitle.trim()} type="submit">
-              Add task
-            </button>
-          </form>
+              }}
+            >
+              <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="New task" />
+              <input type="datetime-local" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} />
+              <select value={taskPriority} onChange={(event) => setTaskPriority(event.target.value)}>
+                <option value="">Priority</option>
+                {Array.from({ length: 10 }, (_, value) => (
+                  <option key={value} value={value}>
+                    P{value}
+                  </option>
+                ))}
+              </select>
+              <div className="checkbox-grid">
+                {workspace.tags.map((tag) => (
+                  <label key={tag.id} className="checkbox-item">
+                    <input
+                      checked={taskTagIds.includes(tag.id)}
+                      type="checkbox"
+                      onChange={(event) => toggleTaskTag(tag.id, event.target.checked, "create")}
+                    />
+                    <span>{tag.name}</span>
+                  </label>
+                ))}
+              </div>
+              <button disabled={isPending || !taskTitle.trim()} type="submit">
+                Add task
+              </button>
+            </form>
+          ) : (
+            <p>完了したタスクの保管先です。ここでは完了タスクのみ表示します。</p>
+          )}
         </section>
 
         <section className="panel">
@@ -629,8 +634,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
           <h2 className="section-heading">{`▼ ${workspaceLabel}`}</h2>
           <ul className="task-list">
-            {workspace.tasks.todoItems.map((task) => (
-              <li key={task.id} className="task-row">
+            {(isDoneProjectPage ? workspace.tasks.completedItems : workspace.tasks.todoItems).map((task) => (
+              <li key={task.id} className={`task-row${task.status === "done" ? " task-row--completed" : ""}`}>
                 <div>
                   <strong>{task.title}</strong>
                   <div className="task-meta">
@@ -654,7 +659,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                           }),
                         });
                         await refresh();
-                        setMessage("Task updated");
+                        setMessage(task.status === "done" ? "Task reopened" : "Task updated");
                       })
                     }
                   >
@@ -680,7 +685,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               </li>
             ))}
           </ul>
-          {workspace.tasks.todoItems.length === 0 ? <p>No open tasks.</p> : null}
+          {isDoneProjectPage
+            ? workspace.tasks.completedItems.length === 0 ? <p>No completed tasks.</p> : null
+            : workspace.tasks.todoItems.length === 0 ? <p>No open tasks.</p> : null}
 
           {shouldShowCompletedSection ? (
             <>
