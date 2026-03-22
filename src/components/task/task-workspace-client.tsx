@@ -156,6 +156,17 @@ function collectDescendantIds(projects: Project[], rootProjectId: string): strin
   return Array.from(descendants);
 }
 
+function formatProjectLabel(projects: Project[], projectId: string): string {
+  const orderedProjects = getIndentedProjects(projects);
+  const target = orderedProjects.find((project) => project.id === projectId);
+
+  if (!target) {
+    return projectId;
+  }
+
+  return `${"  ".repeat(target.depth)}${target.name}`;
+}
+
 export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string; viewId?: string }) {
   const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceState>({
@@ -1203,6 +1214,18 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   setSelectedTask((current) => (current ? { ...current, due_date: fromDateTimeLocal(event.target.value) } : current))
                 }
               />
+              <select
+                value={selectedTask.project_id}
+                onChange={(event) =>
+                  setSelectedTask((current) => (current ? { ...current, project_id: event.target.value } : current))
+                }
+              >
+                {workspace.projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {formatProjectLabel(workspace.projects, project.id)}
+                  </option>
+                ))}
+              </select>
               <select
                 value={selectedTask.priority ?? ""}
                 onChange={(event) =>
