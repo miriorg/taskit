@@ -39,8 +39,13 @@ export type CreateViewInput = {
     query?: string;
   };
   sort: {
-    field: "due_date" | "created_at" | "updated_at" | "priority" | "title";
-    direction: "asc" | "desc";
+    active_key: "project" | "subject" | "due" | "priority";
+    directions: {
+      project: "asc" | "desc";
+      subject: "asc" | "desc";
+      due: "asc" | "desc";
+      priority: "asc" | "desc";
+    };
   };
   display_options: {
     show_completed: boolean;

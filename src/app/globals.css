@@ -159,6 +159,42 @@ select {
   font-size: 14px;
 }
 
+.sort-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.sort-button {
+  background: #d8e7f1;
+  color: #173049;
+}
+
+.sort-button--active {
+  background: #264b68;
+  color: #eef6fb;
+}
+
+.project-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.project-group {
+  display: grid;
+  gap: 8px;
+}
+
+.project-group__toggle {
+  justify-self: start;
+  background: transparent;
+  color: #1b2530;
+  border: 0;
+  padding: 0;
+  font-weight: 600;
+}
+
 .task-actions {
   display: flex;
   gap: 8px;
