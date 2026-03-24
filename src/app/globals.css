@@ -194,7 +194,7 @@ select {
 
 .task-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px 16px;
   border: 1px solid rgba(23, 48, 73, 0.14);
@@ -217,6 +217,20 @@ select {
 
 .task-row--completed {
   opacity: 0.8;
+}
+
+.task-row__checkbox {
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  padding-top: 1px;
+}
+
+.task-checkbox {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
 }
 
 .task-row__main {
@@ -363,17 +377,27 @@ select {
   display: flex;
   gap: 8px;
   align-items: center;
-  flex-wrap: wrap;
+  align-self: start;
 }
 
-.task-action-button {
-  padding: 6px 10px;
-  font-size: 12px;
+.task-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 1;
 }
 
-.task-action-button--danger {
-  background: #f5ddd8;
-  color: #8a2f1e;
+.task-icon-button--danger {
+  opacity: 0.8;
+}
+
+.task-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
 }
 
 .section-caption {
@@ -500,7 +524,7 @@ button:disabled {
   }
 
   .task-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .task-actions {
