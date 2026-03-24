@@ -116,21 +116,90 @@ select {
   background: #d8e7f1;
 }
 
+.tag-cloud {
+  display: grid;
+  gap: 10px;
+}
+
+.tag-cloud__control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid rgba(23, 48, 73, 0.14);
+  border-radius: 14px;
+  padding: 10px;
+  background: #ffffff;
+}
+
+.tag-cloud__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(38, 75, 104, 0.18);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #d8e7f1;
+  color: #173049;
+}
+
+.tag-cloud__input-wrap {
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 180px;
+  min-width: 140px;
+  gap: 8px;
+}
+
+.tag-cloud__icon {
+  color: #466173;
+  font-weight: 600;
+}
+
+.tag-cloud__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.tag-cloud__input:focus {
+  outline: none;
+}
+
+.tag-cloud__suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-cloud__suggestion {
+  border-radius: 999px;
+  background: #f0f5f8;
+  color: #173049;
+}
+
+.tag-cloud__suggestion--primary {
+  background: #264b68;
+  color: #eef6fb;
+}
+
 .task-list {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .task-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 16px;
   border: 1px solid rgba(23, 48, 73, 0.14);
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px 12px;
   background: #ffffff;
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
@@ -150,13 +219,108 @@ select {
   opacity: 0.8;
 }
 
+.task-row__main {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.task-row__title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.task-project-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 2px rgba(23, 48, 73, 0.08);
+}
+
+.task-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
 .task-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 6px;
   color: #4f6475;
-  font-size: 14px;
+  font-size: 12px;
+}
+
+.task-meta--dense {
+  align-items: center;
+  gap: 10px;
+}
+
+.task-meta__project {
+  font-weight: 600;
+}
+
+.task-meta__muted {
+  color: #7b8f9f;
+}
+
+.task-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #e8eff4;
+  color: #29465e;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.task-pill--priority {
+  background: #e5f0d8;
+  color: #31521a;
+}
+
+.task-pill--due {
+  background: #dfeaf5;
+  color: #29465e;
+}
+
+.task-pill--today {
+  background: #ffe8b8;
+  color: #7d4d03;
+}
+
+.task-pill--overdue {
+  background: #ffd9d2;
+  color: #8a2f1e;
+}
+
+.task-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.task-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #edf3f7;
+  color: #466173;
+  white-space: nowrap;
+}
+
+.task-tag--more {
+  background: #d8e7f1;
+  color: #173049;
 }
 
 .sort-bar {
@@ -198,6 +362,18 @@ select {
 .task-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.task-action-button {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.task-action-button--danger {
+  background: #f5ddd8;
+  color: #8a2f1e;
 }
 
 .section-caption {
@@ -230,6 +406,24 @@ select {
   border: 0;
   background: transparent;
   color: #1b2530;
+  font-weight: 600;
+}
+
+.task-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.task-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #edf3f7;
+  color: #29465e;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -303,5 +497,13 @@ button:disabled {
 @media (max-width: 900px) {
   .workspace {
     grid-template-columns: 1fr;
+  }
+
+  .task-row {
+    grid-template-columns: 1fr;
+  }
+
+  .task-actions {
+    justify-content: flex-start;
   }
 }

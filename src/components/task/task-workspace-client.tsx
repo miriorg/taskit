@@ -75,6 +75,18 @@ const SORT_BUTTONS: Array<{ key: TaskListSortKey; label: string }> = [
   { key: "priority", label: "Priority Order" },
 ];
 
+const compactDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const compactDateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+});
+
 function createDefaultViewDraft(projectId?: string, sort: ViewSort = DEFAULT_TASK_LIST_SORT): ViewDraft {
   return {
     name: "",
@@ -113,6 +125,31 @@ function formatSortSummary(sort: ViewSort): string {
   const active = SORT_BUTTONS.find((item) => item.key === sort.active_key);
   const direction = sort.directions[sort.active_key] === "asc" ? "Asc" : "Desc";
   return `${active?.label ?? "Due Order"} ${direction}`;
+}
+
+function formatTaskDueLabel(dueDate: string | null): string | null {
+  if (!dueDate) {
+    return null;
+  }
+
+  return compactDateTimeFormatter.format(new Date(dueDate));
+}
+
+function getDueTone(dueDate: string | null): "normal" | "today" | "overdue" {
+  if (!dueDate) {
+    return "normal";
+  }
+
+  const now = new Date();
+  const due = new Date(dueDate);
+  const todayKey = compactDateFormatter.format(now);
+  const dueKey = compactDateFormatter.format(due);
+
+  if (due.getTime() < now.getTime()) {
+    return dueKey === todayKey ? "today" : "overdue";
+  }
+
+  return dueKey === todayKey ? "today" : "normal";
 }
 
 function groupTasksByProject(items: TaskListResponse["items"]) {
@@ -432,6 +469,18 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     }));
   };
 
+  const toggleViewProjectFilterId = (value: string, checked: boolean) => {
+    setViewDraft((current) => ({
+      ...current,
+      filters: {
+        ...current.filters,
+        project_ids: checked
+          ? [...current.filters.project_ids, value]
+          : current.filters.project_ids.filter((id) => id !== value),
+      },
+    }));
+  };
+
   const openTaskEditor = (taskId: string) => {
     run(async () => {
       const task = await readJson<Task>(`/api/tasks/${taskId}`);
@@ -486,6 +535,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const visibleTaskGroups = groupTasksByProject(sortedVisibleTasks);
   const completedTaskGroups = groupTasksByProject(sortedCompletedTasks);
   const isProjectOrderActive = taskListSort.active_key === "project";
+  const visibleTaskCount = sortedVisibleTasks.length;
+  const completedTaskCount = workspace.tasks.completedItems.length;
 
   useEffect(() => {
     if (sortedVisibleTasks.length === 0) {
@@ -586,49 +637,83 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeTaskId, router, shortcutPrefix, sortedVisibleTasks]);
 
-  const renderTaskRow = (task: TaskListResponse["items"][number], showProjectLabel: boolean, isCompletedSection = false) => (
-    <li
-      key={task.id}
-      className={`task-row${task.status === "done" ? " task-row--completed" : ""}${!isCompletedSection && activeTaskId === task.id ? " task-row--active" : ""}`}
-      onClick={() => setActiveTaskId(task.id)}
-    >
-      <div>
-        <strong>{task.title}</strong>
-        <div className="task-meta">
-          {showProjectLabel ? <span>{task.projectPath}</span> : null}
-          {task.dueDate ? <span>Due {new Date(task.dueDate).toLocaleString()}</span> : null}
-          {task.priority !== null ? <span>P{task.priority}</span> : null}
-          {task.tags.map((tag) => (
-            <span key={tag.id}>#{tag.name}</span>
-          ))}
+  const renderTaskRow = (task: TaskListResponse["items"][number], showProjectLabel: boolean, isCompletedSection = false) => {
+    const dueTone = getDueTone(task.dueDate);
+    const dueLabel = formatTaskDueLabel(task.dueDate);
+    const tagSummary = task.tags.slice(0, 3);
+    const remainingTagCount = task.tags.length - tagSummary.length;
+
+    return (
+      <li
+        key={task.id}
+        className={`task-row${task.status === "done" ? " task-row--completed" : ""}${!isCompletedSection && activeTaskId === task.id ? " task-row--active" : ""}`}
+        onClick={() => setActiveTaskId(task.id)}
+      >
+        <div className="task-row__main">
+          <div className="task-row__title-line">
+            <span className="task-project-dot" style={{ backgroundColor: task.project.color }} aria-hidden="true" />
+            <strong className="task-title">{task.title}</strong>
+            {task.priority !== null ? <span className="task-pill task-pill--priority">{`P${task.priority}`}</span> : null}
+            {dueLabel ? (
+              <span className={`task-pill task-pill--due task-pill--${dueTone}`}>{dueLabel}</span>
+            ) : null}
+          </div>
+          <div className="task-meta task-meta--dense">
+            {showProjectLabel ? <span className="task-meta__project">{task.projectPath}</span> : null}
+            {task.tags.length > 0 ? (
+              <div className="task-tag-list" aria-label="Task tags">
+                {tagSummary.map((tag) => (
+                  <span key={tag.id} className="task-tag">
+                    #{tag.name}
+                  </span>
+                ))}
+                {remainingTagCount > 0 ? <span className="task-tag task-tag--more">{`+${remainingTagCount}`}</span> : null}
+              </div>
+            ) : (
+              <span className="task-meta__muted">No tags</span>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="task-actions">
-        <button
-          type="button"
-          onClick={() => toggleTaskStatus(task)}
-        >
-          {task.status === "done" ? "Reopen" : "Complete"}
-        </button>
-        <button type="button" onClick={() => openTaskEditor(task.id)}>
-          Edit
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            run(async () => {
-              await readJson(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
-              setSelectedTask((current) => (current?.id === task.id ? null : current));
-              await refresh();
-              setMessage({ text: "Task deleted" });
-            }, "task")
-          }
-        >
-          Delete
-        </button>
-      </div>
-    </li>
-  );
+        <div className="task-actions">
+          <button
+            className="button-secondary task-action-button"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleTaskStatus(task);
+            }}
+          >
+            {task.status === "done" ? "Reopen" : "Done"}
+          </button>
+          <button
+            className="button-secondary task-action-button"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              openTaskEditor(task.id);
+            }}
+          >
+            Edit
+          </button>
+          <button
+            className="button-secondary task-action-button task-action-button--danger"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              run(async () => {
+                await readJson(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
+                setSelectedTask((current) => (current?.id === task.id ? null : current));
+                await refresh();
+                setMessage({ text: "Task deleted" });
+              }, "task");
+            }}
+          >
+            Del
+          </button>
+        </div>
+      </li>
+    );
+  };
 
   const renderTaskCollection = (items: TaskListResponse["items"], groups: ReturnType<typeof groupTasksByProject>, isCompletedSection = false) => {
     if (isProjectOrderActive) {
@@ -849,7 +934,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   <input
                     checked={viewDraft.filters.project_ids.includes(project.id)}
                     type="checkbox"
-                    onChange={(event) => toggleViewFilterId("project_ids", project.id, event.target.checked)}
+                    onChange={(event) => toggleViewProjectFilterId(project.id, event.target.checked)}
                   />
                   <span>{project.name}</span>
                 </label>
@@ -1058,6 +1143,11 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               <span>子プロジェクトを含める</span>
             </label>
           ) : null}
+          <div className="task-summary-bar">
+            <span className="task-summary-pill">{`${visibleTaskCount} open`}</span>
+            <span className="task-summary-pill">{`${completedTaskCount} completed`}</span>
+            <span className="task-summary-pill">{formatSortSummary(taskListSort)}</span>
+          </div>
           <div className="sort-bar">
             {SORT_BUTTONS.map((item) => {
               const isActive = taskListSort.active_key === item.key;
@@ -1309,7 +1399,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                       <input
                         checked={viewDraft.filters.project_ids.includes(project.id)}
                         type="checkbox"
-                        onChange={(event) => toggleViewFilterId("project_ids", project.id, event.target.checked)}
+                        onChange={(event) => toggleViewProjectFilterId(project.id, event.target.checked)}
                       />
                       <span>{project.name}</span>
                     </label>
