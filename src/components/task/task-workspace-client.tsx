@@ -69,10 +69,10 @@ class ApiClientError extends Error {
 }
 
 const SORT_BUTTONS: Array<{ key: TaskListSortKey; label: string }> = [
-  { key: "project", label: "Project Order" },
-  { key: "subject", label: "Subject Order" },
-  { key: "due", label: "Due Order" },
-  { key: "priority", label: "Priority Order" },
+  { key: "project", label: "Project" },
+  { key: "subject", label: "Subject" },
+  { key: "due", label: "Due" },
+  { key: "priority", label: "Priority" },
 ];
 
 const compactDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -124,7 +124,7 @@ function createViewDraftFromView(view: View): ViewDraft {
 function formatSortSummary(sort: ViewSort): string {
   const active = SORT_BUTTONS.find((item) => item.key === sort.active_key);
   const direction = sort.directions[sort.active_key] === "asc" ? "Asc" : "Desc";
-  return `${active?.label ?? "Due Order"} ${direction}`;
+  return `${active?.label ?? "Due"} ${direction}`;
 }
 
 function formatTaskDueLabel(dueDate: string | null): string | null {
@@ -649,6 +649,19 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         className={`task-row${task.status === "done" ? " task-row--completed" : ""}${!isCompletedSection && activeTaskId === task.id ? " task-row--active" : ""}`}
         onClick={() => setActiveTaskId(task.id)}
       >
+        <label
+          className="task-row__checkbox"
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <input
+            checked={task.status === "done"}
+            className="task-checkbox"
+            type="checkbox"
+            onChange={() => toggleTaskStatus(task)}
+          />
+        </label>
         <div className="task-row__main">
           <div className="task-row__title-line">
             <span className="task-project-dot" style={{ backgroundColor: task.project.color }} aria-hidden="true" />
@@ -676,28 +689,22 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         </div>
         <div className="task-actions">
           <button
-            className="button-secondary task-action-button"
+            aria-label="Edit task"
+            className="button-secondary task-icon-button"
             type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              toggleTaskStatus(task);
-            }}
-          >
-            {task.status === "done" ? "Reopen" : "Done"}
-          </button>
-          <button
-            className="button-secondary task-action-button"
-            type="button"
+            title="Edit"
             onClick={(event) => {
               event.stopPropagation();
               openTaskEditor(task.id);
             }}
           >
-            Edit
+            <img alt="" aria-hidden="true" className="task-icon" src="/icons/pen-monochrome.svg" />
           </button>
           <button
-            className="button-secondary task-action-button task-action-button--danger"
+            aria-label="Delete task"
+            className="button-secondary task-icon-button task-icon-button--danger"
             type="button"
+            title="Delete"
             onClick={(event) => {
               event.stopPropagation();
               run(async () => {
@@ -708,7 +715,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               }, "task");
             }}
           >
-            Del
+            <img alt="" aria-hidden="true" className="task-icon" src="/icons/trash-monochrome.svg" />
           </button>
         </div>
       </li>
@@ -1151,7 +1158,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           <div className="sort-bar">
             {SORT_BUTTONS.map((item) => {
               const isActive = taskListSort.active_key === item.key;
-              const indicator = isActive ? (taskListSort.directions[item.key] === "asc" ? "▲" : "▼") : "▲▼";
+              const indicator = isActive ? (taskListSort.directions[item.key] === "asc" ? "▲" : "▼") : "▲";
 
               return (
                 <button
