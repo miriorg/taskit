@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -647,6 +648,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       <li
         key={task.id}
         className={`task-row${task.status === "done" ? " task-row--completed" : ""}${!isCompletedSection && activeTaskId === task.id ? " task-row--active" : ""}`}
+        style={{ "--task-project-color": task.project.color } as CSSProperties}
         onClick={() => setActiveTaskId(task.id)}
       >
         <label
@@ -665,7 +667,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         <div className="task-row__main">
           <div className="task-row__title-line">
             <span className="task-project-dot" style={{ backgroundColor: task.project.color }} aria-hidden="true" />
-            <strong className="task-title">{task.title}</strong>
+            <span className="task-title-chip">
+              <strong className="task-title">{task.title}</strong>
+            </span>
             {task.priority !== null ? <span className="task-pill task-pill--priority">{`P${task.priority}`}</span> : null}
             {dueLabel ? (
               <span className={`task-pill task-pill--due task-pill--${dueTone}`}>{dueLabel}</span>
