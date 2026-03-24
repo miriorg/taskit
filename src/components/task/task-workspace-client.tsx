@@ -41,6 +41,23 @@ type ViewDraft = {
   };
 };
 
+type EntityType = "task" | "project" | "view" | "tag";
+
+type UiMessage = {
+  text: string;
+  isConflict?: boolean;
+};
+
+class ApiClientError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+    readonly status?: number,
+  ) {
+    super(message);
+  }
+}
+
 function createDefaultViewDraft(projectId?: string): ViewDraft {
   return {
     name: "",
@@ -85,8 +102,8 @@ async function readJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const response = await fetch(input, init);
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
-    throw new Error(body?.error?.message ?? `Request failed: ${response.status}`);
+    const body = (await response.json().catch(() => null)) as { error?: { message?: string; code?: string } } | null;
+    throw new ApiClientError(body?.error?.message ?? `Request failed: ${response.status}`, body?.error?.code, response.status);
   }
 
   if (response.status === 204) {
@@ -94,6 +111,32 @@ async function readJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+function buildConflictMessage(entityType: EntityType): string {
+  switch (entityType) {
+    case "task":
+      return "このタスクは他の画面で更新されたため保存できませんでした。最新データを読み込んでから再度保存してください。";
+    case "project":
+      return "このプロジェクトは他の画面で更新されたため保存できませんでした。最新データを読み込んでから再度お試しください。";
+    case "view":
+      return "この保存ビューは他の画面で更新されたため保存できませんでした。最新データを読み込んでから再度保存してください。";
+    case "tag":
+      return "タグ一覧が他の画面で更新されたため保存できませんでした。最新データを読み込んでから再度お試しください。";
+  }
+}
+
+function toUiMessage(error: unknown, entityType?: EntityType): UiMessage {
+  if (error instanceof ApiClientError && (error.code === "conflict" || error.status === 409) && entityType) {
+    return {
+      text: buildConflictMessage(entityType),
+      isConflict: true,
+    };
+  }
+
+  return {
+    text: error instanceof Error ? error.message : "Unexpected error",
+  };
 }
 
 function toDateTimeLocal(isoValue: string | null | undefined): string {
@@ -194,7 +237,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(true);
   const [includeChildProjects, setIncludeChildProjects] = useState(Boolean(projectId));
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<UiMessage | null>(null);
   const [isPending, startTransition] = useTransition();
   const [shortcutPrefix, setShortcutPrefix] = useState<string | null>(null);
   const createTaskInputRef = useRef<HTMLInputElement | null>(null);
@@ -292,10 +335,10 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     setViewDraft(createDefaultViewDraft(projectId));
   }, [projectId, viewId, workspace.currentView]);
 
-  const run = (action: () => Promise<void>) => {
+  const run = (action: () => Promise<void>, entityType?: EntityType) => {
     startTransition(() => {
       void action().catch((error: unknown) => {
-        setMessage(error instanceof Error ? error.message : "Unexpected error");
+        setMessage(toUiMessage(error, entityType));
       });
     });
   };
@@ -341,7 +384,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       setSelectedTask(task);
       setActiveTaskId(taskId);
       setMessage(null);
-    });
+    }, "task");
   };
 
   const toggleTaskStatus = (task: TaskListResponse["items"][number]) => {
@@ -353,8 +396,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         }),
       });
       await refresh();
-      setMessage(task.status === "done" ? "Task reopened" : "Task updated");
-    });
+      setMessage({ text: task.status === "done" ? "Task reopened" : "Task updated" });
+    }, "task");
   };
 
   const workspaceLabel = viewId
@@ -500,8 +543,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 });
                 setProjectName("");
                 await refresh();
-                setMessage("Project created");
-              });
+                setMessage({ text: "Project created" });
+              }, "project");
             }}
           >
             <input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="New project" />
@@ -522,10 +565,10 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   type="button"
                   onClick={() =>
                     run(async () => {
-                      await fetch(`/api/tags/${tag.id}`, withExpectedRevision("tag", { method: "DELETE" }));
+                      await readJson(`/api/tags/${tag.id}`, withExpectedRevision("tag", { method: "DELETE" }));
                       await refresh();
-                      setMessage("Tag deleted");
-                    })
+                      setMessage({ text: "Tag deleted" });
+                    }, "tag")
                   }
                 >
                   x
@@ -544,8 +587,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 });
                 setTagName("");
                 await refresh();
-                setMessage("Tag created");
-              });
+                setMessage({ text: "Tag created" });
+              }, "tag");
             }}
           >
             <input value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="New tag" />
@@ -583,8 +626,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 });
                 setViewDraft(createDefaultViewDraft(projectId));
                 await refresh();
-                setMessage("View created");
-              });
+                setMessage({ text: "View created" });
+              }, "view");
             }}
           >
             <input
@@ -724,8 +767,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                         }),
                       });
                       await refresh();
-                      setMessage("Project updated");
-                    });
+                      setMessage({ text: "Project updated" });
+                    }, "project");
                   }}
                 >
                   <input value={projectRename} onChange={(event) => setProjectRename(event.target.value)} />
@@ -745,9 +788,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     type="button"
                     onClick={() =>
                       run(async () => {
-                        await fetch(`/api/projects/${projectId}`, withExpectedRevision("project", { method: "DELETE" }));
+                        await readJson(`/api/projects/${projectId}`, withExpectedRevision("project", { method: "DELETE" }));
                         window.location.href = "/inbox";
-                      })
+                      }, "project")
                     }
                   >
                     Delete project
@@ -768,8 +811,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                       });
                       setSubprojectName("");
                       await refresh();
-                      setMessage("Subproject created");
-                    });
+                      setMessage({ text: "Subproject created" });
+                    }, "project");
                   }}
                 >
                   <input
@@ -840,8 +883,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   });
                   resetCreateTaskForm();
                   await refresh();
-                  setMessage("Task created");
-                });
+                  setMessage({ text: "Task created" });
+                }, "task");
               }}
             >
               <input ref={createTaskInputRef} value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="New task" />
@@ -917,11 +960,11 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     type="button"
                     onClick={() =>
                       run(async () => {
-                        await fetch(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
+                        await readJson(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
                         setSelectedTask((current) => (current?.id === task.id ? null : current));
                         await refresh();
-                        setMessage("Task deleted");
-                      })
+                        setMessage({ text: "Task deleted" });
+                      }, "task")
                     }
                   >
                     Delete
@@ -972,8 +1015,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                                   }),
                                 });
                                 await refresh();
-                                setMessage("Task reopened");
-                              })
+                                setMessage({ text: "Task reopened" });
+                              }, "task")
                             }
                           >
                             Reopen
@@ -985,11 +1028,11 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                             type="button"
                             onClick={() =>
                               run(async () => {
-                                await fetch(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
+                                await readJson(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
                                 setSelectedTask((current) => (current?.id === task.id ? null : current));
                                 await refresh();
-                                setMessage("Task deleted");
-                              })
+                                setMessage({ text: "Task deleted" });
+                              }, "task")
                             }
                           >
                             Delete
@@ -1007,15 +1050,18 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
         {message ? (
           <div className="stack">
-            <p className="message">{message}</p>
-            {message.toLowerCase().includes("reload") || message.toLowerCase().includes("updated elsewhere") ? (
+            <p className="message">{message.text}</p>
+            {message.isConflict ? (
+              <p className="section-caption">再読み込みすると未保存の変更は失われます。</p>
+            ) : null}
+            {message.isConflict ? (
               <button
-                className="button-secondary"
+                className="button-secondary button-secondary--conflict"
                 type="button"
                 onClick={() =>
                   run(async () => {
                     await refresh();
-                    setMessage("Reloaded latest data");
+                    setMessage({ text: "Reloaded latest data" });
                   })
                 }
               >
@@ -1049,8 +1095,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                       }),
                     });
                     await refresh();
-                    setMessage("View updated");
-                  });
+                    setMessage({ text: "View updated" });
+                  }, "view");
                 }}
               >
                 <input
@@ -1170,9 +1216,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     type="button"
                     onClick={() =>
                       run(async () => {
-                        await fetch(`/api/views/${workspace.currentView?.id}`, withExpectedRevision("view", { method: "DELETE" }));
+                        await readJson(`/api/views/${workspace.currentView?.id}`, withExpectedRevision("view", { method: "DELETE" }));
                         window.location.href = "/inbox";
-                      })
+                      }, "view")
                     }
                   >
                     Delete view
@@ -1199,8 +1245,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     }),
                   });
                   await refresh();
-                  setMessage("Task updated");
-                });
+                  setMessage({ text: "Task updated" });
+                }, "task");
               }}
             >
               <input

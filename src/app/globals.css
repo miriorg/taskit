@@ -243,6 +243,11 @@ button {
   color: #173049;
 }
 
+.button-secondary--conflict {
+  background: #b5472f;
+  color: #fff9f3;
+}
+
 button:disabled {
   opacity: 0.6;
   cursor: default;
