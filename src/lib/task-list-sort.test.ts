@@ -49,7 +49,7 @@ describe("toggleTaskListSort", () => {
     });
   });
 
-  it("activates an inactive key in ascending order", () => {
+  it("restores the last direction when activating an inactive key", () => {
     expect(toggleTaskListSort({
       active_key: "due",
       directions: {
@@ -61,7 +61,7 @@ describe("toggleTaskListSort", () => {
     }, "project")).toEqual({
       active_key: "project",
       directions: {
-        project: "asc",
+        project: "desc",
         subject: "desc",
         due: "desc",
         priority: "desc",

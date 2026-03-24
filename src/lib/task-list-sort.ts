@@ -139,10 +139,6 @@ export function toggleTaskListSort(current: ViewSort, key: TaskListSortKey): Vie
   return {
     ...current,
     active_key: key,
-    directions: {
-      ...current.directions,
-      [key]: "asc",
-    },
   };
 }
 
