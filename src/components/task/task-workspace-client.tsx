@@ -335,6 +335,16 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     setViewDraft(createDefaultViewDraft(projectId));
   }, [projectId, viewId, workspace.currentView]);
 
+  useEffect(() => {
+    if (!viewId || !selectedTask) {
+      return;
+    }
+
+    if (!workspace.tasks.items.some((task) => task.id === selectedTask.id)) {
+      setSelectedTask(null);
+    }
+  }, [selectedTask, viewId, workspace.tasks.items]);
+
   const run = (action: () => Promise<void>, entityType?: EntityType) => {
     startTransition(() => {
       void action().catch((error: unknown) => {
@@ -1074,8 +1084,93 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
       <section className="workspace__detail">
         <div className="panel">
-          <h2>{viewId ? workspace.currentView?.name ?? "View" : selectedTask ? "Edit task" : "Details"}</h2>
-          {viewId ? (
+          <h2>{selectedTask ? "Edit task" : viewId ? workspace.currentView?.name ?? "View" : "Details"}</h2>
+          {selectedTask ? (
+            <form
+              className="stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                run(async () => {
+                  await readJson(`/api/tasks/${selectedTask.id}`, {
+                    ...withJsonRevision(`task:${selectedTask.project_id}`, { method: "PATCH" }),
+                    body: JSON.stringify({
+                      title: selectedTask.title,
+                      due_date: selectedTask.due_date,
+                      priority: selectedTask.priority,
+                      tag_ids: selectedTask.tag_ids,
+                      project_id: selectedTask.project_id,
+                    }),
+                  });
+                  await refresh();
+                  setMessage({ text: "Task updated" });
+                }, "task");
+              }}
+            >
+              {viewId ? (
+                <button className="button-secondary" type="button" onClick={() => setSelectedTask(null)}>
+                  Back to view settings
+                </button>
+              ) : null}
+              <input
+                value={selectedTask.title}
+                onChange={(event) => setSelectedTask((current) => (current ? { ...current, title: event.target.value } : current))}
+              />
+              <input
+                type="datetime-local"
+                value={toDateTimeLocal(selectedTask.due_date)}
+                onChange={(event) =>
+                  setSelectedTask((current) => (current ? { ...current, due_date: fromDateTimeLocal(event.target.value) } : current))
+                }
+              />
+              <select
+                value={selectedTask.project_id}
+                onChange={(event) =>
+                  setSelectedTask((current) => (current ? { ...current, project_id: event.target.value } : current))
+                }
+              >
+                {workspace.projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {formatProjectLabel(workspace.projects, project.id)}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={selectedTask.priority ?? ""}
+                onChange={(event) =>
+                  setSelectedTask((current) =>
+                    current
+                      ? {
+                          ...current,
+                          priority: event.target.value === "" ? null : Number(event.target.value),
+                        }
+                      : current,
+                  )
+                }
+              >
+                <option value="">Priority</option>
+                {Array.from({ length: 10 }, (_, value) => (
+                  <option key={value} value={value}>
+                    P{value}
+                  </option>
+                ))}
+              </select>
+              <div className="checkbox-grid">
+                {workspace.tags.map((tag) => (
+                  <label key={tag.id} className="checkbox-item">
+                    <input
+                      checked={selectedTask.tag_ids.includes(tag.id)}
+                      type="checkbox"
+                      onChange={(event) => toggleTaskTag(tag.id, event.target.checked, "edit")}
+                    />
+                    <span>{tag.name}</span>
+                  </label>
+                ))}
+              </div>
+              <button disabled={isPending || !selectedTask.title.trim()} type="submit">
+                Save task
+              </button>
+            </form>
+          ) : viewId ? (
             workspace.currentView ? (
               <form
                 className="stack"
@@ -1228,86 +1323,6 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             ) : (
               <p>View not found.</p>
             )
-          ) : selectedTask ? (
-            <form
-              className="stack"
-              onSubmit={(event) => {
-                event.preventDefault();
-                run(async () => {
-                  await readJson(`/api/tasks/${selectedTask.id}`, {
-                    ...withJsonRevision(`task:${selectedTask.project_id}`, { method: "PATCH" }),
-                    body: JSON.stringify({
-                      title: selectedTask.title,
-                      due_date: selectedTask.due_date,
-                      priority: selectedTask.priority,
-                      tag_ids: selectedTask.tag_ids,
-                      project_id: selectedTask.project_id,
-                    }),
-                  });
-                  await refresh();
-                  setMessage({ text: "Task updated" });
-                }, "task");
-              }}
-            >
-              <input
-                value={selectedTask.title}
-                onChange={(event) => setSelectedTask((current) => (current ? { ...current, title: event.target.value } : current))}
-              />
-              <input
-                type="datetime-local"
-                value={toDateTimeLocal(selectedTask.due_date)}
-                onChange={(event) =>
-                  setSelectedTask((current) => (current ? { ...current, due_date: fromDateTimeLocal(event.target.value) } : current))
-                }
-              />
-              <select
-                value={selectedTask.project_id}
-                onChange={(event) =>
-                  setSelectedTask((current) => (current ? { ...current, project_id: event.target.value } : current))
-                }
-              >
-                {workspace.projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {formatProjectLabel(workspace.projects, project.id)}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={selectedTask.priority ?? ""}
-                onChange={(event) =>
-                  setSelectedTask((current) =>
-                    current
-                      ? {
-                          ...current,
-                          priority: event.target.value === "" ? null : Number(event.target.value),
-                        }
-                      : current,
-                  )
-                }
-              >
-                <option value="">Priority</option>
-                {Array.from({ length: 10 }, (_, value) => (
-                  <option key={value} value={value}>
-                    P{value}
-                  </option>
-                ))}
-              </select>
-              <div className="checkbox-grid">
-                {workspace.tags.map((tag) => (
-                  <label key={tag.id} className="checkbox-item">
-                    <input
-                      checked={selectedTask.tag_ids.includes(tag.id)}
-                      type="checkbox"
-                      onChange={(event) => toggleTaskTag(tag.id, event.target.checked, "edit")}
-                    />
-                    <span>{tag.name}</span>
-                  </label>
-                ))}
-              </div>
-              <button disabled={isPending || !selectedTask.title.trim()} type="submit">
-                Save task
-              </button>
-            </form>
           ) : (
             <p>Select a task to edit tags, due date, and priority.</p>
           )}

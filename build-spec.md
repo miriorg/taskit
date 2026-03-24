@@ -116,6 +116,8 @@
 - タスク登録・編集領域、ビュー登録・編集領域におけるタグ選択UIは、大量タグ前提の運用を想定する。
 - 選択済みタグは現行の視覚表現を維持する。
 - 未選択タグの追加は、検索可能な入力欄付きプルダウンコンボボックスで行う。
+- タイトルとDescription入力時に単体の `#` または `＃` を入力したら Tag 選択モードに入る機能は、MVP後の機能とする。
+- タスク編集画面での `Add SubTask` は MVP 後の機能とする。
 
 ### 2.9. リマインダー
 
@@ -272,3 +274,136 @@ task-[project-id].json
 ### 5.2. 未確定事項
 
 - 現時点で大きな未確定事項はなし。
+
+### 画面レイアウトに関連する要素
+
+- プロジェクト名の表示方法
+ルートプロジェクトの場合: [Root Project Name]
+サブプロジェクトの場合:   [Root Project Name]/[Parent Project Name]/[Current Project Name]
+表示しきれない程の深ネストのプロジェクト: [Root Project Name]...[Parent Project Name]/[Current Project Name]
+※区切りの「/」を[...]に置き換えて省略を現す
+※省略時はRoot寄りのプロジェクト名を省略するようにする
+※以降、このルールを適用したプロジェクト名の表示を[Project]と記述する
+
+- タグ選択領域
+  検索(タグ名に入力文字が含まれるか否か(大文字小文字無視))してタグを選べるようにする
+  - 全く選択されていないとき
+  タグをフィルタ検索できる入力領域のみ表示する
+  - 選択されているタグがあるとき
+  [✅TAG1 ✅TAG2 ✅TAG3 ✅TAG4 🏷️[input area] ]
+  表示されているタグのチェックを外すとタグの選択をキャンセルしたことになる
+- 文字入力によるタグ選択
+  [🏷️[A_]]
+  [   [Android] [Android SDK] [Android Test]   ]
+  入力した文字の下にヒットした複数のタグ候補を表示する
+  ヒットする物がなければ何も表示しない
+  候補表示時に[Enter]もしくは[Tab]が入力されたら先頭候補のタグに確定
+  タグ入力時に[Esc]が入力されたらタグ選択をキャンセルして入力文字列を消去する
+  ※'_'はキャレット
+- ここまでのタグ選択領域の機能をこれ以降では[Tag Cloud]と表現する
+
+- ソートについて
+ソート機能は次の内容をボタン表示する。
+昇順:▲/降順:▼+ソート項目名
+例: ▼Project Order
+アクティブ色で、現在のソート状況を表現し、インアクティブ色で他に選択可能なソート要素を提供する
+アクティブ色のボタンを再度クリックしたときは、昇順:降順を切り替える
+インアクティブ色のボタンを繰り育したときは該当要素の昇順にソートしてアクティブに切り替える
+
+- タスク一覧表示のレイアウト(Project Order以外)
+最上部にソートボタンを配置し、タスク毎にProjectを表示する形式で表示する
+✅はチェックボックスで、通常は終了していないので□で表示され、チェックして✅にするとCompleteボタンを押したことと同じになる
+<🖋><🗑️>の部分はタスク描画領域の右寄せで配置される
+タスクの領域色は紐付けられているプロジェクトカラーにセットされる
+
+```markdown
+<[▲▼]Project Order><[▲▼]Subject Order><[▲▼]Due Order><[▲▼]Priority Order>
+✅[Task Title]
+  [Prefix of Description]                                  [🖋][🗑️]
+  [Due][Tag Cloud]
+  [Project]
+✅[Task Title]
+  [Prefix of Description]                                  [🖋][🗑️]
+  [Due][Tag Cloud]
+  [Project]
+✅[Task Title]
+  [Prefix of Description]                                  [🖋][🗑️]
+  [Due][Tag Cloud]
+  [Project]
+```
+
+- タスク一覧表示のレイアウト(Project Orderの場合)
+
+最上部にソートボタンを配置し、Project毎にグルーピングする形式で表示する
+
+```markdown
+<[▲▼]Project Order><[▲▼]Subject Order><[▲▼]Due Order><[▲▼]Priority Order>
+[▼▶][Project]
+✅[Task Title]
+  [Prefix of Description]                                  [🖋][🗑️]
+  [Due][Tag Cloud]
+✅[Task Title]
+  [Prefix of Description]                                  [🖋][🗑️]
+  [Due][Tag Cloud]
+[▼▶][Project]
+✅[Task Title]
+  [Prefix of Description]                                  [🖋][🗑️]
+  [Due][Tag Cloud]
+```
+
+- タスク追加領域
+
+以下の様に入力フォームを用意する
+
+```markdown
+[New Task                                                         ]
+[New Description                                                  ]
+[Due YYYY/MM/DD HH:MM <📅> ][Priority▼]
+[Tag Cloud]
+```
+
+- ルートプロジェクト追加領域
+
+以下の様に入力フォームを用意する
+
+[New Project][Color]<💾>
+
+- プロジェクト設定編集領域
+
+以下の様に入力フォームを用意する
+
+```markdown
+[Project Name][Color]<💾><🗑️>
+[Sub Project Name]<Add Sub Project>
+[Parent Project Dropdown]
+---
+[Query<×>]<🔍>
+```
+
+[Project Name]：現在のプロジェクト名がセットされる。
+[Color]：プロジェクトのカラーを設定する
+<💾>：現在の入力状態でプロジェクト設定を保存する
+<🗑️>：適切な警告後、プロジェクトを削除する
+[Sub Project Name]：作成するサブプロジェクト名
+<Add Sub Project>：クリックするとサブプロジェクトを追加するボタン
+[Parent Project Dropdown]：親プロジェクトの切替先候補を表示するドロップダウン(自分自身、子孫、インボックス、完了は除く)
+[Query<×>]：タスク検索用文字列。入力領域右端にある<×>ボタンは入力内容をクリアする
+<🔍>：Queryで指定した文字列でカレントプロジェクト以下のタスクを検索する
+
+- タスクの編集
+  [🖋]ボタンでタスクを編集するときはブラウザウィンドウ中央にサブウィンドウを開き、タスク編集画面を表示する。
+
+以下の様に入力フォームを用意する
+
+```markdown
+[Task Title                                                       ]
+[Task Description                                                 ]
+[Due YYYY/MM/DD HH:MM <📅> ][Priority▼]
+[Tag Cloud]
+```
+
+[Task Title]：Taskに設定されているタイトル
+[Task Description]：Taskに設定されているDescription
+[Due YYYY/MM/DD HH:MM <📅> ]：Taskに設定されている期限、日付の直接入力も可能だが<📅>ボタンによるカレンダー選択も可能
+[Priority▼]：Taskに設定されている優先度
+[Tag Cloud]：Taskに設定されているTagの一覧
