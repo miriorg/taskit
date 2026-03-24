@@ -1,6 +1,7 @@
 import type { Revision } from "@/types";
 import { createDriveClient, type DriveClient } from "@/lib/drive/client";
 import { requireSession, type AppSession } from "@/lib/auth/session";
+import { ConflictError } from "@/lib/utils/api-error";
 
 export type DriveFileRecord = {
   id: string;
@@ -123,14 +124,19 @@ export class DriveFileRepository implements DriveFileStore {
     const existing = await this.findByName(name);
 
     if (existing && expectedRevision && existing.revision !== expectedRevision) {
-      throw new Error(`Revision conflict for ${name}`);
+      throw new ConflictError(`The file ${name} was updated elsewhere. Reload and try again.`);
     }
 
-    const metadata = {
-      name,
-      parents: ["appDataFolder"],
-      mimeType: "application/json",
-    };
+    const metadata = existing
+      ? {
+          name,
+          mimeType: "application/json",
+        }
+      : {
+          name,
+          parents: ["appDataFolder"],
+          mimeType: "application/json",
+        };
     const boundary = "taskit-drive-upload-boundary";
     const body = [
       `--${boundary}`,

@@ -4,6 +4,7 @@ export type Revision = string;
 
 export type TaskStatus = "todo" | "done";
 export type SortDirection = "asc" | "desc";
+export type TaskListSortKey = "project" | "subject" | "due" | "priority";
 
 export type Reminder = {
   id: EntityId;
@@ -43,7 +44,7 @@ export type Tag = {
 };
 
 export type ViewDueFilter = "today" | "overdue" | "any" | "none";
-export type ViewSortField = "due_date" | "created_at" | "updated_at" | "priority" | "title";
+export type LegacyViewSortField = "due_date" | "created_at" | "updated_at" | "priority" | "title";
 
 export type ViewFilters = {
   due?: ViewDueFilter;
@@ -54,7 +55,12 @@ export type ViewFilters = {
 };
 
 export type ViewSort = {
-  field: ViewSortField;
+  active_key: TaskListSortKey;
+  directions: Record<TaskListSortKey, SortDirection>;
+};
+
+export type LegacyViewSort = {
+  field: LegacyViewSortField;
   direction: SortDirection;
 };
 

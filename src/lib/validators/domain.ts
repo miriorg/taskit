@@ -50,6 +50,16 @@ export const viewFiltersSchema = z.object({
 });
 
 export const viewSortSchema = z.object({
+  active_key: z.enum(["project", "subject", "due", "priority"]),
+  directions: z.object({
+    project: z.enum(["asc", "desc"]),
+    subject: z.enum(["asc", "desc"]),
+    due: z.enum(["asc", "desc"]),
+    priority: z.enum(["asc", "desc"]),
+  }),
+});
+
+export const legacyViewSortSchema = z.object({
   field: z.enum(["due_date", "created_at", "updated_at", "priority", "title"]),
   direction: z.enum(["asc", "desc"]),
 });
@@ -62,7 +72,7 @@ export const viewSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1),
   filters: viewFiltersSchema,
-  sort: viewSortSchema,
+  sort: z.union([viewSortSchema, legacyViewSortSchema]),
   display_options: viewDisplayOptionsSchema,
   created_at: isoDateStringSchema,
   updated_at: isoDateStringSchema,

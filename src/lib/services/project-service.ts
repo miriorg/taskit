@@ -6,7 +6,7 @@ import { SYSTEM_PROJECT_IDS } from "@/lib/utils/system-projects";
 import { createProjectInputSchema, updateProjectInputSchema } from "@/lib/validators";
 import type { CreateProjectInput, Project, ProjectListResponse, UpdateProjectInput } from "@/types";
 
-function collectDescendantProjectIds(projects: Project[], rootProjectId: string): string[] {
+export function collectDescendantProjectIds(projects: Project[], rootProjectId: string): string[] {
   const childrenByParent = new Map<string, string[]>();
 
   projects.forEach((project) => {
@@ -37,6 +37,10 @@ function collectDescendantProjectIds(projects: Project[], rootProjectId: string)
   return Array.from(visited);
 }
 
+function isDescendantProject(projects: Project[], candidateParentId: string, projectId: string): boolean {
+  return collectDescendantProjectIds(projects, projectId).includes(candidateParentId);
+}
+
 export class ProjectService {
   constructor(
     private readonly projectRepository: ProjectRepository = new ProjectRepository(),
@@ -57,7 +61,7 @@ export class ProjectService {
     return master?.projects.find((project) => project.id === projectId) ?? null;
   }
 
-  async create(input: CreateProjectInput): Promise<Project> {
+  async create(input: CreateProjectInput, expectedRevision?: string): Promise<Project> {
     const payload = createProjectInputSchema.parse(input);
     const master = await this.projectRepository.getMaster();
 
@@ -65,8 +69,16 @@ export class ProjectService {
       throw new Error("Project master is not initialized");
     }
 
-    if (payload.parent_id && !master.projects.some((project) => project.id === payload.parent_id)) {
-      throw new Error("Parent project not found");
+    if (payload.parent_id) {
+      const parentProject = master.projects.find((project) => project.id === payload.parent_id);
+
+      if (!parentProject) {
+        throw new Error("Parent project not found");
+      }
+
+      if (parentProject.system) {
+        throw new Error("System project cannot be a parent");
+      }
     }
 
     const now = new Date().toISOString();
@@ -86,11 +98,11 @@ export class ProjectService {
       projects: [...master.projects, project],
     };
 
-    await this.projectRepository.save(updatedMaster, master.revision);
+    await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
     return project;
   }
 
-  async update(projectId: string, input: UpdateProjectInput): Promise<Project> {
+  async update(projectId: string, input: UpdateProjectInput, expectedRevision?: string): Promise<Project> {
     const payload = updateProjectInputSchema.parse(input);
     const master = await this.projectRepository.getMaster();
 
@@ -104,12 +116,34 @@ export class ProjectService {
       throw new Error("Project not found");
     }
 
-    if (currentProject.system && payload.name) {
-      throw new Error("System project cannot be renamed");
+    if (currentProject.system) {
+      if (payload.name) {
+        throw new Error("System project cannot be renamed");
+      }
+
+      if (payload.parent_id !== undefined) {
+        throw new Error("System project parent cannot be changed");
+      }
     }
 
-    if (payload.parent_id && !master.projects.some((project) => project.id === payload.parent_id)) {
-      throw new Error("Parent project not found");
+    if (payload.parent_id) {
+      const parentProject = master.projects.find((project) => project.id === payload.parent_id);
+
+      if (!parentProject) {
+        throw new Error("Parent project not found");
+      }
+
+      if (parentProject.system) {
+        throw new Error("System project cannot be a parent");
+      }
+
+      if (payload.parent_id === projectId) {
+        throw new Error("Project cannot be its own parent");
+      }
+
+      if (isDescendantProject(master.projects, payload.parent_id, projectId)) {
+        throw new Error("Project cannot move under its descendant");
+      }
     }
 
     const now = new Date().toISOString();
@@ -125,11 +159,11 @@ export class ProjectService {
       projects: master.projects.map((project) => (project.id === projectId ? updatedProject : project)),
     };
 
-    await this.projectRepository.save(updatedMaster, master.revision);
+    await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
     return updatedProject;
   }
 
-  async delete(projectId: string): Promise<{ deletedProjectIds: string[] }> {
+  async delete(projectId: string, expectedRevision?: string): Promise<{ deletedProjectIds: string[] }> {
     if (SYSTEM_PROJECT_IDS.includes(projectId as (typeof SYSTEM_PROJECT_IDS)[number])) {
       throw new Error("System project cannot be deleted");
     }
@@ -151,7 +185,7 @@ export class ProjectService {
       projects: master.projects.filter((project) => !deletedProjectIds.includes(project.id)),
     };
 
-    await this.projectRepository.save(updatedMaster, master.revision);
+    await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
     await Promise.all(deletedProjectIds.map((id) => this.taskRepository.deleteByProjectId(id)));
 
     return {

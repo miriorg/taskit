@@ -26,6 +26,8 @@ export type TaskListItemDto = {
   title: string;
   dueDate: string | null;
   priority: number | null;
+  createdAt: string;
+  projectPath: string;
   status: Task["status"];
   project: Pick<Project, "id" | "name" | "color">;
   tags: Array<Pick<Tag, "id" | "name">>;
@@ -33,6 +35,8 @@ export type TaskListItemDto = {
 
 export type TaskListResponse = {
   items: TaskListItemDto[];
+  todoItems: TaskListItemDto[];
+  completedItems: TaskListItemDto[];
   revisions: FileRevisionMap;
 };
 
