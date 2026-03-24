@@ -4,8 +4,21 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-import type { FileRevisionMap, Project, ProjectListResponse, Tag, TagListResponse, Task, TaskListResponse, View, ViewListResponse } from "@/types";
+import { DEFAULT_TASK_LIST_SORT, sortTaskListItems, toggleTaskListSort } from "@/lib/task-list-sort";
 import { DONE_PROJECT_ID, INBOX_PROJECT_ID } from "@/lib/utils/system-projects";
+import type {
+  FileRevisionMap,
+  Project,
+  ProjectListResponse,
+  Tag,
+  TagListResponse,
+  Task,
+  TaskListResponse,
+  TaskListSortKey,
+  View,
+  ViewListResponse,
+  ViewSort,
+} from "@/types";
 
 type WorkspaceState = {
   projects: Project[];
@@ -32,10 +45,7 @@ type ViewDraft = {
     include_project_descendants: boolean;
     query: string;
   };
-  sort: {
-    field: "due_date" | "created_at" | "updated_at" | "priority" | "title";
-    direction: "asc" | "desc";
-  };
+  sort: ViewSort;
   display_options: {
     show_completed: boolean;
   };
@@ -58,7 +68,14 @@ class ApiClientError extends Error {
   }
 }
 
-function createDefaultViewDraft(projectId?: string): ViewDraft {
+const SORT_BUTTONS: Array<{ key: TaskListSortKey; label: string }> = [
+  { key: "project", label: "Project Order" },
+  { key: "subject", label: "Subject Order" },
+  { key: "due", label: "Due Order" },
+  { key: "priority", label: "Priority Order" },
+];
+
+function createDefaultViewDraft(projectId?: string, sort: ViewSort = DEFAULT_TASK_LIST_SORT): ViewDraft {
   return {
     name: "",
     filters: {
@@ -68,10 +85,7 @@ function createDefaultViewDraft(projectId?: string): ViewDraft {
       include_project_descendants: Boolean(projectId),
       query: "",
     },
-    sort: {
-      field: "due_date",
-      direction: "asc",
-    },
+    sort,
     display_options: {
       show_completed: false,
     },
@@ -88,14 +102,38 @@ function createViewDraftFromView(view: View): ViewDraft {
       include_project_descendants: view.filters.include_project_descendants ?? false,
       query: view.filters.query ?? "",
     },
-    sort: {
-      field: view.sort.field,
-      direction: view.sort.direction,
-    },
+    sort: view.sort,
     display_options: {
       show_completed: view.display_options.show_completed,
     },
   };
+}
+
+function formatSortSummary(sort: ViewSort): string {
+  const active = SORT_BUTTONS.find((item) => item.key === sort.active_key);
+  const direction = sort.directions[sort.active_key] === "asc" ? "Asc" : "Desc";
+  return `${active?.label ?? "Due Order"} ${direction}`;
+}
+
+function groupTasksByProject(items: TaskListResponse["items"]) {
+  const groups: Array<{ projectId: string; projectPath: string; items: TaskListResponse["items"] }> = [];
+
+  items.forEach((item) => {
+    const currentGroup = groups[groups.length - 1];
+
+    if (!currentGroup || currentGroup.projectId !== item.project.id) {
+      groups.push({
+        projectId: item.project.id,
+        projectPath: item.projectPath,
+        items: [item],
+      });
+      return;
+    }
+
+    currentGroup.items.push(item);
+  });
+
+  return groups;
 }
 
 async function readJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
@@ -235,6 +273,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [subprojectName, setSubprojectName] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [taskListSort, setTaskListSort] = useState<ViewSort>(DEFAULT_TASK_LIST_SORT);
+  const [collapsedProjectGroups, setCollapsedProjectGroups] = useState<Record<string, boolean>>({});
   const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(true);
   const [includeChildProjects, setIncludeChildProjects] = useState(Boolean(projectId));
   const [message, setMessage] = useState<UiMessage | null>(null);
@@ -328,11 +368,15 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
   useEffect(() => {
     if (viewId && workspace.currentView) {
-      setViewDraft(createViewDraftFromView(workspace.currentView));
+      const nextDraft = createViewDraftFromView(workspace.currentView);
+      setViewDraft(nextDraft);
+      setTaskListSort(nextDraft.sort);
       return;
     }
 
-    setViewDraft(createDefaultViewDraft(projectId));
+    const nextSort = DEFAULT_TASK_LIST_SORT;
+    setViewDraft(createDefaultViewDraft(projectId, nextSort));
+    setTaskListSort(nextSort);
   }, [projectId, viewId, workspace.currentView]);
 
   useEffect(() => {
@@ -410,6 +454,17 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     }, "task");
   };
 
+  const handleTaskListSortChange = (key: TaskListSortKey) => {
+    setTaskListSort((current) => {
+      const next = toggleTaskListSort(current, key);
+      setViewDraft((draft) => ({
+        ...draft,
+        sort: next,
+      }));
+      return next;
+    });
+  };
+
   const workspaceLabel = viewId
     ? workspace.currentView?.name ?? "View"
     : projectId
@@ -426,17 +481,22 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const visibleProjects = getIndentedProjects(workspace.projects).filter((project) => project.id !== INBOX_PROJECT_ID);
   const shouldShowCompletedSection = !projectId;
   const visibleTasks = isDoneProjectPage ? workspace.tasks.completedItems : workspace.tasks.todoItems;
+  const sortedVisibleTasks = sortTaskListItems(visibleTasks, taskListSort);
+  const sortedCompletedTasks = sortTaskListItems(workspace.tasks.completedItems, taskListSort);
+  const visibleTaskGroups = groupTasksByProject(sortedVisibleTasks);
+  const completedTaskGroups = groupTasksByProject(sortedCompletedTasks);
+  const isProjectOrderActive = taskListSort.active_key === "project";
 
   useEffect(() => {
-    if (visibleTasks.length === 0) {
+    if (sortedVisibleTasks.length === 0) {
       setActiveTaskId(null);
       return;
     }
 
-    if (!activeTaskId || !visibleTasks.some((task) => task.id === activeTaskId)) {
-      setActiveTaskId(visibleTasks[0]?.id ?? null);
+    if (!activeTaskId || !sortedVisibleTasks.some((task) => task.id === activeTaskId)) {
+      setActiveTaskId(sortedVisibleTasks[0]?.id ?? null);
     }
-  }, [activeTaskId, visibleTasks]);
+  }, [activeTaskId, sortedVisibleTasks]);
 
   useEffect(() => {
     if (!shortcutPrefix) {
@@ -508,7 +568,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         return;
       }
 
-      const activeTask = visibleTasks.find((task) => task.id === activeTaskId);
+      const activeTask = sortedVisibleTasks.find((task) => task.id === activeTaskId);
 
       if (event.key === "e" && activeTask) {
         event.preventDefault();
@@ -524,7 +584,83 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeTaskId, router, shortcutPrefix, visibleTasks]);
+  }, [activeTaskId, router, shortcutPrefix, sortedVisibleTasks]);
+
+  const renderTaskRow = (task: TaskListResponse["items"][number], showProjectLabel: boolean, isCompletedSection = false) => (
+    <li
+      key={task.id}
+      className={`task-row${task.status === "done" ? " task-row--completed" : ""}${!isCompletedSection && activeTaskId === task.id ? " task-row--active" : ""}`}
+      onClick={() => setActiveTaskId(task.id)}
+    >
+      <div>
+        <strong>{task.title}</strong>
+        <div className="task-meta">
+          {showProjectLabel ? <span>{task.projectPath}</span> : null}
+          {task.dueDate ? <span>Due {new Date(task.dueDate).toLocaleString()}</span> : null}
+          {task.priority !== null ? <span>P{task.priority}</span> : null}
+          {task.tags.map((tag) => (
+            <span key={tag.id}>#{tag.name}</span>
+          ))}
+        </div>
+      </div>
+      <div className="task-actions">
+        <button
+          type="button"
+          onClick={() => toggleTaskStatus(task)}
+        >
+          {task.status === "done" ? "Reopen" : "Complete"}
+        </button>
+        <button type="button" onClick={() => openTaskEditor(task.id)}>
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            run(async () => {
+              await readJson(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
+              setSelectedTask((current) => (current?.id === task.id ? null : current));
+              await refresh();
+              setMessage({ text: "Task deleted" });
+            }, "task")
+          }
+        >
+          Delete
+        </button>
+      </div>
+    </li>
+  );
+
+  const renderTaskCollection = (items: TaskListResponse["items"], groups: ReturnType<typeof groupTasksByProject>, isCompletedSection = false) => {
+    if (isProjectOrderActive) {
+      return (
+        <div className="project-groups">
+          {groups.map((group) => {
+            const isCollapsed = collapsedProjectGroups[group.projectId] ?? false;
+
+            return (
+              <section key={group.projectId} className="project-group">
+                <button
+                  className="project-group__toggle"
+                  type="button"
+                  onClick={() =>
+                    setCollapsedProjectGroups((current) => ({
+                      ...current,
+                      [group.projectId]: !isCollapsed,
+                    }))
+                  }
+                >
+                  {`${isCollapsed ? "▶" : "▼"} ${group.projectPath}`}
+                </button>
+                {!isCollapsed ? <ul className="task-list">{group.items.map((task) => renderTaskRow(task, false, isCompletedSection))}</ul> : null}
+              </section>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return <ul className="task-list">{items.map((task) => renderTaskRow(task, true, isCompletedSection))}</ul>;
+  };
 
   return (
     <div className="workspace">
@@ -675,23 +811,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               <option value="overdue">Overdue</option>
               <option value="none">No due date</option>
             </select>
-            <select
-              value={`${viewDraft.sort.field}:${viewDraft.sort.direction}`}
-              onChange={(event) => {
-                const [field, direction] = event.target.value.split(":") as [ViewDraft["sort"]["field"], ViewDraft["sort"]["direction"]];
-                setViewDraft((current) => ({
-                  ...current,
-                  sort: { field, direction },
-                }));
-              }}
-            >
-              <option value="due_date:asc">Due date asc</option>
-              <option value="due_date:desc">Due date desc</option>
-              <option value="priority:desc">Priority desc</option>
-              <option value="priority:asc">Priority asc</option>
-              <option value="title:asc">Title asc</option>
-              <option value="updated_at:desc">Updated desc</option>
-            </select>
+            <p className="section-caption">{`Sort: ${formatSortSummary(viewDraft.sort)}`}</p>
             <label className="checkbox-item">
               <input
                 checked={viewDraft.display_options.show_completed}
@@ -938,54 +1058,27 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               <span>子プロジェクトを含める</span>
             </label>
           ) : null}
-          <ul className="task-list">
-            {visibleTasks.map((task) => (
-              <li
-                key={task.id}
-                className={`task-row${task.status === "done" ? " task-row--completed" : ""}${activeTaskId === task.id ? " task-row--active" : ""}`}
-                onClick={() => setActiveTaskId(task.id)}
-              >
-                <div>
-                  <strong>{task.title}</strong>
-                  <div className="task-meta">
-                    <span>{task.project.name}</span>
-                    {task.dueDate ? <span>Due {new Date(task.dueDate).toLocaleString()}</span> : null}
-                    {task.priority !== null ? <span>P{task.priority}</span> : null}
-                    {task.tags.map((tag) => (
-                      <span key={tag.id}>#{tag.name}</span>
-                    ))}
-                  </div>
-                </div>
-                <div className="task-actions">
-                  <button
-                    type="button"
-                    onClick={() => toggleTaskStatus(task)}
-                  >
-                    {task.status === "done" ? "Reopen" : "Complete"}
-                  </button>
-                  <button type="button" onClick={() => openTaskEditor(task.id)}>
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      run(async () => {
-                        await readJson(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
-                        setSelectedTask((current) => (current?.id === task.id ? null : current));
-                        await refresh();
-                        setMessage({ text: "Task deleted" });
-                      }, "task")
-                    }
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="sort-bar">
+            {SORT_BUTTONS.map((item) => {
+              const isActive = taskListSort.active_key === item.key;
+              const indicator = isActive ? (taskListSort.directions[item.key] === "asc" ? "▲" : "▼") : "▲▼";
+
+              return (
+                <button
+                  key={item.key}
+                  className={`sort-button${isActive ? " sort-button--active" : " button-secondary"}`}
+                  type="button"
+                  onClick={() => handleTaskListSortChange(item.key)}
+                >
+                  {`${indicator} ${item.label}`}
+                </button>
+              );
+            })}
+          </div>
+          {renderTaskCollection(sortedVisibleTasks, visibleTaskGroups)}
           {isDoneProjectPage
-            ? workspace.tasks.completedItems.length === 0 ? <p>No completed tasks.</p> : null
-            : workspace.tasks.todoItems.length === 0 ? <p>No open tasks.</p> : null}
+            ? sortedVisibleTasks.length === 0 ? <p>No completed tasks.</p> : null
+            : sortedVisibleTasks.length === 0 ? <p>No open tasks.</p> : null}
 
           {shouldShowCompletedSection ? (
             <>
@@ -999,59 +1092,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               </button>
               {!isCompletedCollapsed ? (
                 <>
-                  <ul className="task-list">
-                    {workspace.tasks.completedItems.map((task) => (
-                      <li key={task.id} className="task-row task-row--completed">
-                        <div>
-                          <strong>{task.title}</strong>
-                          <div className="task-meta">
-                            <span>{task.project.name}</span>
-                            {task.dueDate ? <span>Due {new Date(task.dueDate).toLocaleString()}</span> : null}
-                            {task.priority !== null ? <span>P{task.priority}</span> : null}
-                            {task.tags.map((tag) => (
-                              <span key={tag.id}>#{tag.name}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="task-actions">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              run(async () => {
-                                await readJson(`/api/tasks/${task.id}`, {
-                                  ...withJsonRevision(`task:${task.project.id}`, { method: "PATCH" }),
-                                  body: JSON.stringify({
-                                    status: "todo",
-                                  }),
-                                });
-                                await refresh();
-                                setMessage({ text: "Task reopened" });
-                              }, "task")
-                            }
-                          >
-                            Reopen
-                          </button>
-                          <button type="button" onClick={() => openTaskEditor(task.id)}>
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              run(async () => {
-                                await readJson(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
-                                setSelectedTask((current) => (current?.id === task.id ? null : current));
-                                await refresh();
-                                setMessage({ text: "Task deleted" });
-                              }, "task")
-                            }
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                  {workspace.tasks.completedItems.length === 0 ? <p>No completed tasks.</p> : null}
+                  {renderTaskCollection(sortedCompletedTasks, completedTaskGroups, true)}
+                  {sortedCompletedTasks.length === 0 ? <p>No completed tasks.</p> : null}
                 </>
               ) : null}
             </>
@@ -1229,23 +1271,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   <option value="overdue">Overdue</option>
                   <option value="none">No due date</option>
                 </select>
-                <select
-                  value={`${viewDraft.sort.field}:${viewDraft.sort.direction}`}
-                  onChange={(event) => {
-                    const [field, direction] = event.target.value.split(":") as [ViewDraft["sort"]["field"], ViewDraft["sort"]["direction"]];
-                    setViewDraft((current) => ({
-                      ...current,
-                      sort: { field, direction },
-                    }));
-                  }}
-                >
-                  <option value="due_date:asc">Due date asc</option>
-                  <option value="due_date:desc">Due date desc</option>
-                  <option value="priority:desc">Priority desc</option>
-                  <option value="priority:asc">Priority asc</option>
-                  <option value="title:asc">Title asc</option>
-                  <option value="updated_at:desc">Updated desc</option>
-                </select>
+                <p className="section-caption">{`Sort: ${formatSortSummary(viewDraft.sort)}`}</p>
                 <label className="checkbox-item">
                   <input
                     checked={viewDraft.display_options.show_completed}

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { migrateLegacyViewSort } from "@/lib/task-list-sort";
 import { createTaskListResponse, TaskService } from "@/lib/services/task-service";
 import { ViewRepository } from "@/lib/repositories/view-repository";
 import { createViewInputSchema, updateViewInputSchema } from "@/lib/validators";
@@ -38,7 +39,7 @@ export class ViewService {
       id: randomUUID(),
       name: payload.name,
       filters: payload.filters,
-      sort: payload.sort,
+      sort: migrateLegacyViewSort(payload.sort),
       display_options: payload.display_options,
       created_at: now,
       updated_at: now,
@@ -74,7 +75,7 @@ export class ViewService {
       ...current,
       ...payload,
       filters: payload.filters ?? current.filters,
-      sort: payload.sort ?? current.sort,
+      sort: payload.sort ? migrateLegacyViewSort(payload.sort) : current.sort,
       display_options: payload.display_options ?? current.display_options,
       updated_at: new Date().toISOString(),
     };
@@ -156,20 +157,6 @@ export class ViewService {
       return view.display_options.show_completed || item.status !== "done";
     });
 
-    const items = [...filtered].sort((left, right) => {
-      const leftValue = left[view.sort.field === "due_date" ? "dueDate" : view.sort.field === "priority" ? "priority" : "title"];
-      const rightValue = right[view.sort.field === "due_date" ? "dueDate" : view.sort.field === "priority" ? "priority" : "title"];
-      const normalizedLeft = leftValue ?? "";
-      const normalizedRight = rightValue ?? "";
-
-      if (normalizedLeft === normalizedRight) {
-        return 0;
-      }
-
-      const comparison = normalizedLeft > normalizedRight ? 1 : -1;
-      return view.sort.direction === "asc" ? comparison : comparison * -1;
-    });
-
-    return createTaskListResponse(items, listResponse.revisions);
+    return createTaskListResponse(filtered, listResponse.revisions, view.sort);
   }
 }

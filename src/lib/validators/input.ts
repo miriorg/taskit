@@ -45,8 +45,13 @@ export const createViewInputSchema = z.object({
     query: z.string().trim().optional(),
   }),
   sort: z.object({
-    field: z.enum(["due_date", "created_at", "updated_at", "priority", "title"]),
-    direction: z.enum(["asc", "desc"]),
+    active_key: z.enum(["project", "subject", "due", "priority"]),
+    directions: z.object({
+      project: z.enum(["asc", "desc"]),
+      subject: z.enum(["asc", "desc"]),
+      due: z.enum(["asc", "desc"]),
+      priority: z.enum(["asc", "desc"]),
+    }),
   }),
   display_options: z.object({
     show_completed: z.boolean(),

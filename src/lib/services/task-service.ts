@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 
 import { ProjectRepository } from "@/lib/repositories/project-repository";
 import { TaskRepository } from "@/lib/repositories/task-repository";
+import { DEFAULT_TASK_LIST_SORT, sortTaskListItems } from "@/lib/task-list-sort";
 import { TagRepository } from "@/lib/repositories/tag-repository";
 import { collectDescendantProjectIds } from "@/lib/services/project-service";
 import { DONE_PROJECT_ID, INBOX_PROJECT_ID } from "@/lib/utils/system-projects";
 import { createTaskInputSchema, updateTaskInputSchema } from "@/lib/validators";
-import type { CreateTaskInput, Task, TaskListItemDto, TaskListResponse, UpdateTaskInput } from "@/types";
+import type { CreateTaskInput, Project, Task, TaskListItemDto, TaskListResponse, UpdateTaskInput, ViewSort } from "@/types";
 
 type TaskLocation = {
   task: Task;
@@ -26,14 +27,43 @@ export type TaskMutationOptions = {
   expectedRevision?: string;
 };
 
-function toTaskListItem(task: Task, projectMap: Map<string, { id: string; name: string; color: string }>, tagMap: Map<string, { id: string; name: string }>): TaskListItemDto {
+function buildProjectPath(projectId: string, projectMap: Map<string, Project>): string {
+  const names: string[] = [];
+  const visited = new Set<string>();
+  let currentId: string | null = projectId;
+
+  while (currentId) {
+    if (visited.has(currentId)) {
+      break;
+    }
+
+    visited.add(currentId);
+    const project = projectMap.get(currentId);
+
+    if (!project) {
+      names.unshift(currentId);
+      break;
+    }
+
+    names.unshift(project.name);
+    currentId = project.parent_id;
+  }
+
+  return names.join("/");
+}
+
+function toTaskListItem(task: Task, projectMap: Map<string, Project>, tagMap: Map<string, { id: string; name: string }>): TaskListItemDto {
+  const project = projectMap.get(task.project_id);
+
   return {
     id: task.id,
     title: task.title,
     dueDate: task.due_date,
     priority: task.priority,
+    createdAt: task.created_at,
+    projectPath: buildProjectPath(task.project_id, projectMap),
     status: task.status,
-    project: projectMap.get(task.project_id) ?? {
+    project: project ?? {
       id: task.project_id,
       name: task.project_id,
       color: "#808080",
@@ -42,30 +72,12 @@ function toTaskListItem(task: Task, projectMap: Map<string, { id: string; name: 
   };
 }
 
-function sortTaskItems(left: TaskListItemDto, right: TaskListItemDto): number {
-  if (!left.dueDate && !right.dueDate) {
-    return left.title.localeCompare(right.title);
-  }
-
-  if (!left.dueDate) {
-    return 1;
-  }
-
-  if (!right.dueDate) {
-    return -1;
-  }
-
-  const dueDateComparison = left.dueDate.localeCompare(right.dueDate);
-
-  if (dueDateComparison !== 0) {
-    return dueDateComparison;
-  }
-
-  return left.title.localeCompare(right.title);
-}
-
-export function createTaskListResponse(items: TaskListItemDto[], revisions: TaskListResponse["revisions"]): TaskListResponse {
-  const sortedItems = [...items].sort(sortTaskItems);
+export function createTaskListResponse(
+  items: TaskListItemDto[],
+  revisions: TaskListResponse["revisions"],
+  sort: ViewSort = DEFAULT_TASK_LIST_SORT,
+): TaskListResponse {
+  const sortedItems = sortTaskListItems(items, sort);
 
   return {
     items: sortedItems,

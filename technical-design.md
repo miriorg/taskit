@@ -214,6 +214,13 @@ type View = {
 };
 ```
 
+#### ソート UI 再設計方針
+
+- `View.sort` は単一の `field + direction` ではなく、タスク一覧ヘッダの4ボタン UI を表現できる状態へ拡張する。
+- 対象は `Project Order / Subject Order / Due Order / Priority Order` の4種とする。
+- `Project Order` はソートだけでなく `Project ごとのグルーピング表示` を伴うため、一覧描画モード切替のトリガーとして扱う。
+- 具体的な状態モデル、遷移、互換移行は [sort-ui-design.md](/C:/Users/miri/git/codex/taskit/sort-ui-design.md) を正とする。
+
 ### 7.5. Reminder
 
 ```ts
@@ -510,7 +517,8 @@ type TaskListItemDto = {
 - `filters`
   - 許可された条件のみ使用可能
 - `sort.field`
-  - `due_date` `created_at` `priority` `title` などの許可リストで検証
+  - 新ソート UI では `active_key` と `directions` を検証対象にする
+  - 詳細は [sort-ui-design.md](/C:/Users/miri/git/codex/taskit/sort-ui-design.md) を参照
 
 ## 15. エラー処理
 
