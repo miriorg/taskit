@@ -93,6 +93,20 @@ C:\Users\miri\AppData\Roaming\npm\vercel.cmd deploy --prod --yes
 - 説明文はランダム生成
 - タグは固定付与またはランダム選択が可能
 
+## View page notes
+
+- `View` 画面では、通常は右ペインに保存ビューの条件編集を表示します
+- タスクを選択して `Edit` を押すと、右ペインはタスク編集フォームへ切り替わります
+- `Back to view settings` でビュー編集に戻れます
+- `Complete` や `Delete` の後にタスクがビュー条件から外れた場合は、一覧から消えることがあります
+
+## Hierarchical project checks
+
+- プロジェクト編集でサブプロジェクトを追加できます
+- 親プロジェクト変更ドロップダウンでは、自分自身、子孫、`Inbox`、`完了` は候補に出ません
+- 親プロジェクト画面では `子プロジェクトを含める` を切り替えられます
+- `ON` では子孫タスクを集約表示し、`OFF` ではそのプロジェクト自身のタスクだけを表示します
+
 ## Current MVP scope
 
 実装済みの中心機能:
@@ -100,6 +114,7 @@ C:\Users\miri\AppData\Roaming\npm\vercel.cmd deploy --prod --yes
 - Google ログイン
 - Google Drive への bootstrap / CRUD
 - Projects / Tags / Tasks / Views の基本操作
+- 階層プロジェクト作成と親変更
 - 保存ビューの作成・編集
 - 検索
 - 競合時の revision チェック
@@ -117,5 +132,7 @@ MVP 後に回している項目:
 - Google ログイン後に `/inbox` へ遷移する
 - タスク作成、編集、完了、削除ができる
 - プロジェクト作成とタグ作成ができる
+- 親子プロジェクト作成と `子プロジェクトを含める` 切り替えができる
 - 保存ビューを作成して `/view/[viewId]` で表示できる
+- `View` 画面でタスクの `Edit / Complete / Delete` が動く
 - `完了` プロジェクトで完了済みタスクを確認できる
