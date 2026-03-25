@@ -128,6 +128,10 @@ function formatSortSummary(sort: ViewSort): string {
   return `${active?.label ?? "Due"} ${direction}`;
 }
 
+function renderTriangleIcon(src: string, alt: string) {
+  return <img alt={alt} className="inline-triangle-icon" src={src} />;
+}
+
 function formatTaskDueLabel(dueDate: string | null): string | null {
   if (!dueDate) {
     return null;
@@ -745,7 +749,11 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     }))
                   }
                 >
-                  {`${isCollapsed ? "▶" : "▼"} ${group.projectPath}`}
+                  {renderTriangleIcon(
+                    isCollapsed ? "/icons/triangle-close.svg" : "/icons/triangle-open.svg",
+                    isCollapsed ? "Collapsed" : "Expanded",
+                  )}
+                  <span>{group.projectPath}</span>
                 </button>
                 {!isCollapsed ? <ul className="task-list">{group.items.map((task) => renderTaskRow(task, false, isCompletedSection))}</ul> : null}
               </section>
@@ -1165,7 +1173,12 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           <div className="sort-bar">
             {SORT_BUTTONS.map((item) => {
               const isActive = taskListSort.active_key === item.key;
-              const indicator = isActive ? (taskListSort.directions[item.key] === "asc" ? "▲" : "▼") : "▲";
+              const indicatorSrc = isActive
+                ? taskListSort.directions[item.key] === "asc"
+                  ? "/icons/triangle-asc.svg"
+                  : "/icons/triangle-dsc.svg"
+                : "/icons/triangle-asc.svg";
+              const indicatorAlt = isActive ? (taskListSort.directions[item.key] === "asc" ? "Ascending" : "Descending") : "Sort";
 
               return (
                 <button
@@ -1174,7 +1187,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   type="button"
                   onClick={() => handleTaskListSortChange(item.key)}
                 >
-                  {`${indicator} ${item.label}`}
+                  {renderTriangleIcon(indicatorSrc, indicatorAlt)}
+                  <span>{item.label}</span>
                 </button>
               );
             })}
