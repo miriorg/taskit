@@ -6,8 +6,8 @@ body {
 }
 
 :root {
-  --icon-size-sm: 10px;
-  --icon-size-md: 14px;
+  --icon-size-sm: 18px;
+  --icon-size-md: 24px;
   --icon-button-size: 24px;
 }
 
@@ -280,8 +280,8 @@ select {
 }
 
 .task-project-dot {
-  width: var(--icon-size-sm);
-  height: var(--icon-size-sm);
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   border-radius: 999px;
   flex: 0 0 auto;
   box-shadow: 0 0 0 2px rgba(23, 48, 73, 0.08);
@@ -425,8 +425,8 @@ select {
 
 .inline-triangle-icon {
   display: block;
-  width: var(--icon-size-sm);
-  height: var(--icon-size-sm);
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   flex: 0 0 auto;
 }
 
