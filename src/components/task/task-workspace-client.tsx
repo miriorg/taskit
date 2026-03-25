@@ -802,7 +802,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           <ul className="chip-list">
             {workspace.tags.map((tag) => (
               <li key={tag.id} className="chip">
-                {tag.name}
+                <span className="chip__label">{tag.name}</span>
                 <button
                   aria-label={`Delete tag ${tag.name}`}
                   className="chip__icon-button"
@@ -816,7 +816,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     }, "tag")
                   }
                 >
-                  <img alt="" aria-hidden="true" className="chip__icon" src="/icons/cross.svg" />
+                  <img alt="" aria-hidden="true" className="chip__icon" src="/icons/cross_l.svg" />
                 </button>
               </li>
             ))}
