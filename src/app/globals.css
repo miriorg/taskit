@@ -116,6 +116,22 @@ select {
   background: #d8e7f1;
 }
 
+.chip__icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 1;
+}
+
+.chip__icon {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
+
 .tag-cloud {
   display: grid;
   gap: 10px;

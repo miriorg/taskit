@@ -804,6 +804,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               <li key={tag.id} className="chip">
                 {tag.name}
                 <button
+                  aria-label={`Delete tag ${tag.name}`}
+                  className="chip__icon-button"
+                  title="Delete"
                   type="button"
                   onClick={() =>
                     run(async () => {
@@ -813,7 +816,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     }, "tag")
                   }
                 >
-                  x
+                  <img alt="" aria-hidden="true" className="chip__icon" src="/icons/cross.svg" />
                 </button>
               </li>
             ))}
