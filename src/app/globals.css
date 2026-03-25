@@ -6,8 +6,8 @@ body {
 }
 
 :root {
-  --icon-size-sm: 10px;
-  --icon-size-md: 14px;
+  --icon-size-sm: 18px;
+  --icon-size-md: 24px;
   --icon-button-size: 24px;
 }
 
@@ -280,8 +280,8 @@ select {
 }
 
 .task-project-dot {
-  width: var(--icon-size-sm);
-  height: var(--icon-size-sm);
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   border-radius: 999px;
   flex: 0 0 auto;
   box-shadow: 0 0 0 2px rgba(23, 48, 73, 0.08);
@@ -392,6 +392,8 @@ select {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 9px 12px;
+  border-radius: 10px;
   background: #d8e7f1;
   color: #173049;
 }
@@ -399,6 +401,11 @@ select {
 .sort-button--active {
   background: #264b68;
   color: #eef6fb;
+}
+
+.sort-button__active-indicator {
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .project-groups {
@@ -414,19 +421,38 @@ select {
 .project-group__toggle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  justify-self: start;
-  background: transparent;
+  gap: 8px;
+  justify-self: stretch;
+  width: 100%;
+  border: 1px solid rgba(23, 48, 73, 0.12);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(237, 243, 247, 0.84);
   color: #1b2530;
-  border: 0;
-  padding: 0;
   font-weight: 600;
+}
+
+.project-group__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-group__count {
+  margin-left: auto;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #466173;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .inline-triangle-icon {
   display: block;
-  width: var(--icon-size-sm);
-  height: var(--icon-size-sm);
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   flex: 0 0 auto;
 }
 

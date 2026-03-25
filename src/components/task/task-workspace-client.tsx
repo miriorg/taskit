@@ -88,6 +88,12 @@ const compactDateFormatter = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
 });
 
+function formatSortSummary(sort: ViewSort): string {
+  const active = SORT_BUTTONS.find((item) => item.key === sort.active_key);
+  const direction = sort.directions[sort.active_key] === "asc" ? "Asc" : "Desc";
+  return `${active?.label ?? "Due"} ${direction}`;
+}
+
 function createDefaultViewDraft(projectId?: string, sort: ViewSort = DEFAULT_TASK_LIST_SORT): ViewDraft {
   return {
     name: "",
@@ -120,12 +126,6 @@ function createViewDraftFromView(view: View): ViewDraft {
       show_completed: view.display_options.show_completed,
     },
   };
-}
-
-function formatSortSummary(sort: ViewSort): string {
-  const active = SORT_BUTTONS.find((item) => item.key === sort.active_key);
-  const direction = sort.directions[sort.active_key] === "asc" ? "Asc" : "Desc";
-  return `${active?.label ?? "Due"} ${direction}`;
 }
 
 function renderTriangleIcon(src: string, alt: string) {
@@ -753,7 +753,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     isCollapsed ? "/icons/triangle-close.svg" : "/icons/triangle-open.svg",
                     isCollapsed ? "Collapsed" : "Expanded",
                   )}
-                  <span>{group.projectPath}</span>
+                  <span className="project-group__title">{group.projectPath}</span>
+                  <span className="project-group__count">{`${group.items.length} tasks`}</span>
                 </button>
                 {!isCollapsed ? <ul className="task-list">{group.items.map((task) => renderTaskRow(task, false, isCompletedSection))}</ul> : null}
               </section>
@@ -797,9 +798,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               }, "project");
             }}
           >
-            <input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="New project" />
+            <input required value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="New project" />
             <input value={projectColor} onChange={(event) => setProjectColor(event.target.value)} type="color" />
-            <button disabled={isPending || !projectName.trim()} type="submit">
+            <button disabled={isPending} type="submit">
               Add project
             </button>
           </form>
@@ -844,8 +845,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               }, "tag");
             }}
           >
-            <input value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="New tag" />
-            <button disabled={isPending || !tagName.trim()} type="submit">
+            <input required value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="New tag" />
+            <button disabled={isPending} type="submit">
               Add tag
             </button>
           </form>
@@ -884,6 +885,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             }}
           >
             <input
+              required
               value={viewDraft.name}
               onChange={(event) => setViewDraft((current) => ({ ...current, name: event.target.value }))}
               placeholder="New view"
@@ -974,7 +976,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 </label>
               ))}
             </div>
-            <button disabled={isPending || !viewDraft.name.trim()} type="submit">
+            <button disabled={isPending} type="submit">
               Add view
             </button>
           </form>
@@ -1124,7 +1126,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 }, "task");
               }}
             >
-              <input ref={createTaskInputRef} value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="New task" />
+              <input required ref={createTaskInputRef} value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="New task" />
               <input type="datetime-local" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} />
               <select value={taskPriority} onChange={(event) => setTaskPriority(event.target.value)}>
                 <option value="">Priority</option>
@@ -1146,7 +1148,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   </label>
                 ))}
               </div>
-              <button disabled={isPending || !taskTitle.trim()} type="submit">
+              <button disabled={isPending} type="submit">
                 Add task
               </button>
             </form>
@@ -1168,17 +1170,11 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           <div className="task-summary-bar">
             <span className="task-summary-pill">{`${visibleTaskCount} open`}</span>
             <span className="task-summary-pill">{`${completedTaskCount} completed`}</span>
-            <span className="task-summary-pill">{formatSortSummary(taskListSort)}</span>
           </div>
-          <div className="sort-bar">
+          <div className="sort-bar" aria-label="Task sorting controls">
             {SORT_BUTTONS.map((item) => {
               const isActive = taskListSort.active_key === item.key;
-              const indicatorSrc = isActive
-                ? taskListSort.directions[item.key] === "asc"
-                  ? "/icons/triangle-asc.svg"
-                  : "/icons/triangle-dsc.svg"
-                : "/icons/triangle-asc.svg";
-              const indicatorAlt = isActive ? (taskListSort.directions[item.key] === "asc" ? "Ascending" : "Descending") : "Sort";
+              const activeDirection = taskListSort.directions[item.key];
 
               return (
                 <button
@@ -1187,8 +1183,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   type="button"
                   onClick={() => handleTaskListSortChange(item.key)}
                 >
-                  {renderTriangleIcon(indicatorSrc, indicatorAlt)}
                   <span>{item.label}</span>
+                  {isActive ? <span className="sort-button__active-indicator">{activeDirection === "asc" ? "▲" : "▼"}</span> : null}
                 </button>
               );
             })}
