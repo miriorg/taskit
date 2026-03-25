@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { TagCloud } from "@/components/tag";
 import { DEFAULT_TASK_LIST_SORT, sortTaskListItems, toggleTaskListSort } from "@/lib/task-list-sort";
 import { DONE_PROJECT_ID, INBOX_PROJECT_ID } from "@/lib/utils/system-projects";
 import type {
@@ -93,7 +94,6 @@ function formatSortSummary(sort: ViewSort): string {
   const direction = sort.directions[sort.active_key] === "asc" ? "Asc" : "Desc";
   return `${active?.label ?? "Due"} ${direction}`;
 }
-
 function createDefaultViewDraft(projectId?: string, sort: ViewSort = DEFAULT_TASK_LIST_SORT): ViewDraft {
   return {
     name: "",
@@ -444,34 +444,6 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     setTaskDueDate("");
     setTaskPriority("");
     setTaskTagIds([]);
-  };
-
-  const toggleTaskTag = (tagId: string, checked: boolean, target: "create" | "edit") => {
-    if (target === "create") {
-      setTaskTagIds((current) => (checked ? [...current, tagId] : current.filter((id) => id !== tagId)));
-      return;
-    }
-
-    setSelectedTask((current) =>
-      current
-        ? {
-            ...current,
-            tag_ids: checked ? [...current.tag_ids, tagId] : current.tag_ids.filter((id) => id !== tagId),
-          }
-        : current,
-    );
-  };
-
-  const toggleViewFilterId = (target: "project_ids" | "tag_ids", value: string, checked: boolean) => {
-    setViewDraft((current) => ({
-      ...current,
-      filters: {
-        ...current.filters,
-        [target]: checked
-          ? [...current.filters[target], value]
-          : current.filters[target].filter((id) => id !== value),
-      },
-    }));
   };
 
   const toggleViewProjectFilterId = (value: string, checked: boolean) => {
@@ -964,19 +936,21 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 </label>
               ))}
             </div>
-            <div className="checkbox-grid">
-              {workspace.tags.map((tag) => (
-                <label key={tag.id} className="checkbox-item">
-                  <input
-                    checked={viewDraft.filters.tag_ids.includes(tag.id)}
-                    type="checkbox"
-                    onChange={(event) => toggleViewFilterId("tag_ids", tag.id, event.target.checked)}
-                  />
-                  <span>#{tag.name}</span>
-                </label>
-              ))}
-            </div>
-            <button disabled={isPending} type="submit">
+            <TagCloud
+              tags={workspace.tags}
+              selectedTagIds={viewDraft.filters.tag_ids}
+              onChange={(tagIds) =>
+                setViewDraft((current) => ({
+                  ...current,
+                  filters: {
+                    ...current.filters,
+                    tag_ids: tagIds,
+                  },
+                }))
+              }
+              inputPlaceholder="Filter tags"
+            />
+            <button disabled={isPending || !viewDraft.name.trim()} type="submit">
               Add view
             </button>
           </form>
@@ -1136,19 +1110,13 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   </option>
                 ))}
               </select>
-              <div className="checkbox-grid">
-                {workspace.tags.map((tag) => (
-                  <label key={tag.id} className="checkbox-item">
-                    <input
-                      checked={taskTagIds.includes(tag.id)}
-                      type="checkbox"
-                      onChange={(event) => toggleTaskTag(tag.id, event.target.checked, "create")}
-                    />
-                    <span>{tag.name}</span>
-                  </label>
-                ))}
-              </div>
-              <button disabled={isPending} type="submit">
+              <TagCloud
+                tags={workspace.tags}
+                selectedTagIds={taskTagIds}
+                onChange={setTaskTagIds}
+                inputPlaceholder="Add tags"
+              />
+              <button disabled={isPending || !taskTitle.trim()} type="submit">
                 Add task
               </button>
             </form>
@@ -1170,8 +1138,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           <div className="task-summary-bar">
             <span className="task-summary-pill">{`${visibleTaskCount} open`}</span>
             <span className="task-summary-pill">{`${completedTaskCount} completed`}</span>
+            <span className="task-summary-pill">{formatSortSummary(taskListSort)}</span>
           </div>
-          <div className="sort-bar" aria-label="Task sorting controls">
+          <div className="sort-bar">
             {SORT_BUTTONS.map((item) => {
               const isActive = taskListSort.active_key === item.key;
               const activeDirection = taskListSort.directions[item.key];
@@ -1310,18 +1279,14 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   </option>
                 ))}
               </select>
-              <div className="checkbox-grid">
-                {workspace.tags.map((tag) => (
-                  <label key={tag.id} className="checkbox-item">
-                    <input
-                      checked={selectedTask.tag_ids.includes(tag.id)}
-                      type="checkbox"
-                      onChange={(event) => toggleTaskTag(tag.id, event.target.checked, "edit")}
-                    />
-                    <span>{tag.name}</span>
-                  </label>
-                ))}
-              </div>
+              <TagCloud
+                tags={workspace.tags}
+                selectedTagIds={selectedTask.tag_ids}
+                onChange={(tagIds) =>
+                  setSelectedTask((current) => (current ? { ...current, tag_ids: tagIds } : current))
+                }
+                inputPlaceholder="Add tags"
+              />
               <button disabled={isPending || !selectedTask.title.trim()} type="submit">
                 Save task
               </button>
@@ -1429,18 +1394,20 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     </label>
                   ))}
                 </div>
-                <div className="checkbox-grid">
-                  {workspace.tags.map((tag) => (
-                    <label key={tag.id} className="checkbox-item">
-                      <input
-                        checked={viewDraft.filters.tag_ids.includes(tag.id)}
-                        type="checkbox"
-                        onChange={(event) => toggleViewFilterId("tag_ids", tag.id, event.target.checked)}
-                      />
-                      <span>#{tag.name}</span>
-                    </label>
-                  ))}
-                </div>
+                <TagCloud
+                  tags={workspace.tags}
+                  selectedTagIds={viewDraft.filters.tag_ids}
+                  onChange={(tagIds) =>
+                    setViewDraft((current) => ({
+                      ...current,
+                      filters: {
+                        ...current.filters,
+                        tag_ids: tagIds,
+                      },
+                    }))
+                  }
+                  inputPlaceholder="Filter tags"
+                />
                 <div className="inline-form">
                   <button disabled={isPending || !viewDraft.name.trim()} type="submit">
                     Save view
