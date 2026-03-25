@@ -116,6 +116,22 @@ select {
   background: #d8e7f1;
 }
 
+.chip__icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 1;
+}
+
+.chip__icon {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
+
 .tag-cloud {
   display: grid;
   gap: 10px;
@@ -200,7 +216,8 @@ select {
   border: 1px solid rgba(23, 48, 73, 0.14);
   border-radius: 12px;
   padding: 10px 12px;
-  background: #ffffff;
+  background: var(--task-project-color, #ffffff);
+  color: #173049;
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
@@ -262,11 +279,22 @@ select {
   font-size: 14px;
 }
 
+.task-title-chip {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(23, 48, 73, 0.08);
+}
+
 .task-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  color: #4f6475;
+  color: rgba(23, 48, 73, 0.86);
   font-size: 12px;
 }
 
@@ -280,7 +308,7 @@ select {
 }
 
 .task-meta__muted {
-  color: #7b8f9f;
+  color: rgba(23, 48, 73, 0.64);
 }
 
 .task-pill {
@@ -288,20 +316,20 @@ select {
   align-items: center;
   border-radius: 999px;
   padding: 3px 8px;
-  background: #e8eff4;
-  color: #29465e;
+  background: rgba(255, 255, 255, 0.82);
+  color: #173049;
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .task-pill--priority {
-  background: #e5f0d8;
+  background: rgba(255, 255, 255, 0.86);
   color: #31521a;
 }
 
 .task-pill--due {
-  background: #dfeaf5;
+  background: rgba(255, 255, 255, 0.86);
   color: #29465e;
 }
 
@@ -327,13 +355,13 @@ select {
   align-items: center;
   border-radius: 999px;
   padding: 2px 7px;
-  background: #edf3f7;
-  color: #466173;
+  background: rgba(255, 255, 255, 0.74);
+  color: #173049;
   white-space: nowrap;
 }
 
 .task-tag--more {
-  background: #d8e7f1;
+  background: rgba(255, 255, 255, 0.9);
   color: #173049;
 }
 
