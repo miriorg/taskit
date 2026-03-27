@@ -7,7 +7,11 @@ import { createTagInputSchema, updateTagInputSchema } from "@/lib/validators";
 import type { CreateTagInput, Tag, TagListResponse, UpdateTagInput } from "@/types";
 
 function normalizeTagName(name: string) {
-  return name.trim().toLowerCase();
+  return name.trim().replace(/^[#＃]+/, "").trim().toLowerCase();
+}
+
+function sanitizeTagName(name: string) {
+  return name.trim().replace(/^[#＃]+/, "").trim();
 }
 
 export class TagService {
@@ -34,19 +38,20 @@ export class TagService {
   async create(input: CreateTagInput, expectedRevision?: string): Promise<Tag> {
     const payload = createTagInputSchema.parse(input);
     const master = await this.tagRepository.getMaster();
+    const sanitizedName = sanitizeTagName(payload.name);
 
     if (!master) {
       throw new Error("Tag master is not initialized");
     }
 
-    if (master.tags.some((tag) => normalizeTagName(tag.name) === normalizeTagName(payload.name))) {
+    if (master.tags.some((tag) => normalizeTagName(tag.name) === normalizeTagName(sanitizedName))) {
       throw new Error("Tag name already exists");
     }
 
     const now = new Date().toISOString();
     const tag: Tag = {
       id: randomUUID(),
-      name: payload.name,
+      name: sanitizedName,
       created_at: now,
       updated_at: now,
     };
@@ -77,7 +82,8 @@ export class TagService {
       throw new Error("Tag not found");
     }
 
-    const normalizedRequestedName = payload.name ? normalizeTagName(payload.name) : null;
+    const sanitizedRequestedName = payload.name ? sanitizeTagName(payload.name) : null;
+    const normalizedRequestedName = sanitizedRequestedName ? normalizeTagName(sanitizedRequestedName) : null;
 
     if (normalizedRequestedName && master.tags.some((tag) => tag.id !== tagId && normalizeTagName(tag.name) === normalizedRequestedName)) {
       throw new Error("Tag name already exists");
@@ -86,6 +92,7 @@ export class TagService {
     const updated: Tag = {
       ...current,
       ...payload,
+      ...(sanitizedRequestedName ? { name: sanitizedRequestedName } : {}),
       updated_at: new Date().toISOString(),
     };
 

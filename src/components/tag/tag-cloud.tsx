@@ -11,6 +11,7 @@ type TagCloudProps = {
   inputPlaceholder?: string;
   onCreateTag?: (name: string) => Promise<Tag>;
   focusSignal?: number;
+  initialQuery?: string;
   onRequestClose?: () => void;
   onTagCommitted?: () => void;
 };
@@ -30,7 +31,11 @@ type TagSuggestion =
     };
 
 function normalizeTagName(name: string) {
-  return name.trim().toLowerCase();
+  return name.trim().replace(/^[#＃]+/, "").trim().toLowerCase();
+}
+
+function sanitizeTagName(name: string) {
+  return name.trim().replace(/^[#＃]+/, "").trim();
 }
 
 export function TagCloud({
@@ -40,6 +45,7 @@ export function TagCloud({
   inputPlaceholder = "Search tags",
   onCreateTag,
   focusSignal = 0,
+  initialQuery = "",
   onRequestClose,
   onTagCommitted,
 }: TagCloudProps) {
@@ -53,10 +59,12 @@ export function TagCloud({
 
   useEffect(() => {
     if (focusSignal > 0) {
+      setQuery(initialQuery);
+      setCreateError(null);
       inputRef.current?.focus();
       inputRef.current?.select();
     }
-  }, [focusSignal]);
+  }, [focusSignal, initialQuery]);
 
   const selectedTags = useMemo(() => {
     const tagsById = new Map(tags.map((tag) => [tag.id, tag]));
@@ -86,8 +94,8 @@ export function TagCloud({
     const createSuggestion: TagSuggestion = {
       kind: "create",
       id: `create:${normalizedQuery}`,
-      label: `Create #${query.trim()}`,
-      name: query.trim(),
+      label: `Create #${sanitizeTagName(query)}`,
+      name: sanitizeTagName(query),
     };
 
     return [
@@ -181,7 +189,7 @@ export function TagCloud({
             role="combobox"
             ref={inputRef}
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => setQuery(event.target.value.replace(/^[#＃]+/, ""))}
             onKeyDown={(event) => {
               if (event.key === "ArrowDown" && suggestions.length > 0) {
                 event.preventDefault();

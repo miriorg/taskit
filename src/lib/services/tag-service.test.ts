@@ -70,6 +70,37 @@ describe("TagService.create", () => {
 
     await expect(service.create({ name: " android " })).rejects.toThrow("Tag name already exists");
   });
+
+  it("sanitizes a leading hash before saving a tag", async () => {
+    const service = new TagService(
+      new TagRepositoryStub({
+        schema_version: 1,
+        updated_at: "2026-03-22T00:00:00.000Z",
+        tags: [],
+      }) as never,
+    );
+
+    await expect(service.create({ name: "#append" })).resolves.toMatchObject({ name: "append" });
+  });
+
+  it("treats hashed and unhashed names as duplicates", async () => {
+    const service = new TagService(
+      new TagRepositoryStub({
+        schema_version: 1,
+        updated_at: "2026-03-22T00:00:00.000Z",
+        tags: [
+          {
+            id: "tag-append",
+            name: "append",
+            created_at: "2026-03-22T00:00:00.000Z",
+            updated_at: "2026-03-22T00:00:00.000Z",
+          },
+        ],
+      }) as never,
+    );
+
+    await expect(service.create({ name: "#append" })).rejects.toThrow("Tag name already exists");
+  });
 });
 
 describe("TagService.update", () => {
@@ -96,6 +127,25 @@ describe("TagService.update", () => {
     );
 
     await expect(service.update("tag-ios", { name: "ANDROID" })).rejects.toThrow("Tag name already exists");
+  });
+
+  it("sanitizes a leading hash when renaming a tag", async () => {
+    const service = new TagService(
+      new TagRepositoryStub({
+        schema_version: 1,
+        updated_at: "2026-03-22T00:00:00.000Z",
+        tags: [
+          {
+            id: "tag-ios",
+            name: "iOS",
+            created_at: "2026-03-22T00:00:00.000Z",
+            updated_at: "2026-03-22T00:00:00.000Z",
+          },
+        ],
+      }) as never,
+    );
+
+    await expect(service.update("tag-ios", { name: "#append" })).resolves.toMatchObject({ name: "append" });
   });
 });
 

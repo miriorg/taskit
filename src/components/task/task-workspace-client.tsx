@@ -36,6 +36,7 @@ type InlineTagPickerState = {
   top: number;
   left: number;
   focusSignal: number;
+  initialQuery: string;
 };
 
 const emptyTaskListResponse: TaskListResponse = {
@@ -362,6 +363,24 @@ function getCaretPopoverPosition(element: HTMLInputElement | HTMLTextAreaElement
   };
 }
 
+function extractInlineTagTrigger(value: string, caretIndex: number) {
+  const beforeCaret = value.slice(0, caretIndex);
+  const match = beforeCaret.match(/(^|\s)[#＃]([^\s#＃]*)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const query = match[2] ?? "";
+  const tokenLength = 1 + query.length;
+  const tokenStart = caretIndex - tokenLength;
+
+  return {
+    nextValue: value.slice(0, tokenStart) + value.slice(caretIndex),
+    query,
+  };
+}
+
 export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string; viewId?: string }) {
   const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceState>({
@@ -611,12 +630,14 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const openInlineTagPicker = (
     target: InlineTagPickerState["target"],
     position: Pick<InlineTagPickerState, "top" | "left">,
+    initialQuery = "",
   ) => {
     setInlineTagPicker((current) => ({
       target,
       top: position.top,
       left: position.left,
       focusSignal: (current?.focusSignal ?? 0) + 1,
+      initialQuery,
     }));
   };
 
@@ -643,6 +664,10 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     event: ReactKeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
     target: InlineTagPickerState["target"],
   ) => {
+    if (event.nativeEvent.isComposing) {
+      return;
+    }
+
     if (event.key !== "#" && event.key !== "＃") {
       return;
     }
@@ -651,6 +676,25 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     inlineTagSourceRef.current = event.currentTarget;
     const position = getCaretPopoverPosition(event.currentTarget);
     openInlineTagPicker(target, position);
+  };
+
+  const handleInlineTagInput = (
+    element: HTMLInputElement | HTMLTextAreaElement,
+    target: InlineTagPickerState["target"],
+    updateValue: (value: string) => void,
+  ) => {
+    const caretIndex = element.selectionStart ?? element.value.length;
+    const trigger = extractInlineTagTrigger(element.value, caretIndex);
+
+    if (!trigger) {
+      updateValue(element.value);
+      return;
+    }
+
+    updateValue(trigger.nextValue);
+    inlineTagSourceRef.current = element;
+    const position = getCaretPopoverPosition(element);
+    openInlineTagPicker(target, position, trigger.query);
   };
 
   const toggleViewProjectFilterId = (value: string, checked: boolean) => {
@@ -1312,14 +1356,14 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 required
                 ref={createTaskInputRef}
                 value={taskTitle}
-                onChange={(event) => setTaskTitle(event.target.value)}
+                onChange={(event) => handleInlineTagInput(event.currentTarget, "create", setTaskTitle)}
                 onKeyDown={(event) => handleInlineTagShortcut(event, "create")}
                 placeholder="New task"
               />
               <textarea
                 rows={3}
                 value={taskDescription}
-                onChange={(event) => setTaskDescription(event.target.value)}
+                onChange={(event) => handleInlineTagInput(event.currentTarget, "create", setTaskDescription)}
                 onKeyDown={(event) => handleInlineTagShortcut(event, "create")}
                 placeholder="New description"
               />
@@ -1456,14 +1500,20 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               ) : null}
               <input
                 value={selectedTask.title}
-                onChange={(event) => setSelectedTask((current) => (current ? { ...current, title: event.target.value } : current))}
+                onChange={(event) =>
+                  handleInlineTagInput(event.currentTarget, "edit", (value) =>
+                    setSelectedTask((current) => (current ? { ...current, title: value } : current)),
+                  )
+                }
                 onKeyDown={(event) => handleInlineTagShortcut(event, "edit")}
               />
               <textarea
                 rows={4}
                 value={selectedTask.description ?? ""}
                 onChange={(event) =>
-                  setSelectedTask((current) => (current ? { ...current, description: event.target.value || null } : current))
+                  handleInlineTagInput(event.currentTarget, "edit", (value) =>
+                    setSelectedTask((current) => (current ? { ...current, description: value || null } : current)),
+                  )
                 }
                 onKeyDown={(event) => handleInlineTagShortcut(event, "edit")}
                 placeholder="Task description"
@@ -1671,6 +1721,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             inputPlaceholder="Add tags"
             onCreateTag={createInlineTag}
             focusSignal={inlineTagPicker.focusSignal}
+            initialQuery={inlineTagPicker.initialQuery}
             onRequestClose={closeInlineTagPickerAndRestoreFocus}
             onTagCommitted={closeInlineTagPickerAndRestoreFocus}
           />
