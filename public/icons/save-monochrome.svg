@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
   <title>Save Icon</title>
   <g stroke="#111111" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M20 14h20l8 8v24.5c0 3.6-2.9 6.5-6.5 6.5h-19c-3.6 0-6.5-2.9-6.5-6.5v-26c0-3.6 2.9-6.5 6.5-6.5Z" />
-    <path d="M24 14v13h14V14" />
-    <path d="M24 42h16" />
-    <path d="M26 35h12c1.1 0 2 .9 2 2v10H24V37c0-1.1.9-2 2-2Z" />
-    <path d="M40 14v8h8" />
+    <path d="M16 10h24l12 12v26.5c0 3.6-2.9 6.5-6.5 6.5h-23c-3.6 0-6.5-2.9-6.5-6.5v-32c0-3.6 2.9-6.5 6.5-6.5Z" />
+    <path d="M22 10v15h16V10" />
+    <path d="M22 42h20" />
+    <path d="M24.5 33h15c1.4 0 2.5 1.1 2.5 2.5V49H22V35.5c0-1.4 1.1-2.5 2.5-2.5Z" />
+    <path d="M40 10v12h12" />
   </g>
 </svg>

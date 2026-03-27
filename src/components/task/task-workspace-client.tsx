@@ -403,6 +403,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [projectRename, setProjectRename] = useState("");
+  const [projectEditColor, setProjectEditColor] = useState("#ff8080");
   const [parentProjectId, setParentProjectId] = useState("");
   const [subprojectName, setSubprojectName] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -494,6 +495,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     if (projectId) {
       const currentProject = workspace.projects.find((project) => project.id === projectId);
       setProjectRename(currentProject?.name ?? "");
+      setProjectEditColor(currentProject?.color ?? "#ff8080");
       setParentProjectId(currentProject?.parent_id ?? "");
     }
   }, [projectId, workspace.projects]);
@@ -1022,7 +1024,11 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             }}
           >
             <input required value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="New project" />
-            <input value={projectColor} onChange={(event) => setProjectColor(event.target.value)} type="color" />
+            <label className="color-picker-button" style={{ backgroundColor: projectColor }}>
+              <span className="sr-only">Choose project color</span>
+              <img alt="" aria-hidden="true" className="task-icon" src="/icons/palette-monochrome.svg" />
+              <input className="color-picker-button__input" value={projectColor} onChange={(event) => setProjectColor(event.target.value)} type="color" />
+            </label>
             <button disabled={isPending} type="submit">
               Add project
             </button>
@@ -1227,6 +1233,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                         ...withJsonRevision("project", { method: "PATCH" }),
                         body: JSON.stringify({
                           name: projectRename,
+                          color: projectEditColor,
                           parent_id: parentProjectId || null,
                         }),
                       });
@@ -1236,6 +1243,16 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   }}
                 >
                   <input value={projectRename} onChange={(event) => setProjectRename(event.target.value)} />
+                  <label className="color-picker-button" style={{ backgroundColor: projectEditColor }}>
+                    <span className="sr-only">Choose project color</span>
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/palette-monochrome.svg" />
+                    <input
+                      className="color-picker-button__input"
+                      value={projectEditColor}
+                      onChange={(event) => setProjectEditColor(event.target.value)}
+                      type="color"
+                    />
+                  </label>
                   <select value={parentProjectId} onChange={(event) => setParentProjectId(event.target.value)}>
                     <option value="">No parent</option>
                     {availableParentProjects.map((project) => (
@@ -1244,11 +1261,20 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                       </option>
                     ))}
                   </select>
-                  <button disabled={isPending || !projectRename.trim()} type="submit">
-                    Save project
+                  <button
+                    aria-label="Save project"
+                    className="button-secondary task-icon-button"
+                    disabled={isPending || !projectRename.trim()}
+                    title="Save project"
+                    type="submit"
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/save-monochrome.svg" />
                   </button>
                   <button
+                    aria-label="Delete project"
+                    className="button-secondary task-icon-button task-icon-button--danger"
                     disabled={isPending}
+                    title="Delete project"
                     type="button"
                     onClick={() =>
                       run(async () => {
@@ -1257,7 +1283,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                       }, "project")
                     }
                   >
-                    Delete project
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/trash-monochrome.svg" />
                   </button>
                 </form>
                 <form
@@ -1308,18 +1334,27 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               onChange={(event) => setSearchDraft(event.target.value)}
               placeholder="Search tasks"
             />
-            <button disabled={isPending} type="submit">
-              Search
+            <button
+              aria-label="Search tasks"
+              className="button-secondary task-icon-button"
+              disabled={isPending}
+              title="Search tasks"
+              type="submit"
+            >
+              <img alt="" aria-hidden="true" className="task-icon" src="/icons/loupe-monochrome.svg" />
             </button>
             <button
+              aria-label="Clear search"
+              className="button-secondary task-icon-button"
               disabled={isPending || (!searchDraft && !searchQuery)}
+              title="Clear search"
               type="button"
               onClick={() => {
                 setSearchDraft("");
                 setSearchQuery("");
               }}
             >
-              Clear
+              <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
             </button>
           </form>
           <p className="section-caption">
