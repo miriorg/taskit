@@ -459,6 +459,10 @@ select {
 .project-group {
   display: grid;
   gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(23, 48, 73, 0.08);
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--project-group-color, #dfe9ef) 0%, #dfe9ef 100%);
 }
 
 .project-group__toggle {

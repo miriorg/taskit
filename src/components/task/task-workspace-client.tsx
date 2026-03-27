@@ -166,7 +166,7 @@ function getDueTone(dueDate: string | null): "normal" | "today" | "overdue" {
 }
 
 function groupTasksByProject(items: TaskListResponse["items"]) {
-  const groups: Array<{ projectId: string; projectPath: string; items: TaskListResponse["items"] }> = [];
+  const groups: Array<{ projectId: string; projectPath: string; projectColor: string; items: TaskListResponse["items"] }> = [];
 
   items.forEach((item) => {
     const currentGroup = groups[groups.length - 1];
@@ -175,6 +175,7 @@ function groupTasksByProject(items: TaskListResponse["items"]) {
       groups.push({
         projectId: item.project.id,
         projectPath: item.projectPath,
+        projectColor: item.project.color,
         items: [item],
       });
       return;
@@ -963,7 +964,11 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             const isCollapsed = collapsedProjectGroups[group.projectId] ?? false;
 
             return (
-              <section key={group.projectId} className="project-group">
+              <section
+                key={group.projectId}
+                className="project-group"
+                style={{ "--project-group-color": group.projectColor } as CSSProperties}
+              >
                 <button
                   className="project-group__toggle"
                   type="button"
