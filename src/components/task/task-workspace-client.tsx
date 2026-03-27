@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -29,6 +29,14 @@ type WorkspaceState = {
   tasks: TaskListResponse;
   currentView: View | null;
   revisions: FileRevisionMap;
+};
+
+type InlineTagPickerState = {
+  target: "create" | "edit";
+  top: number;
+  left: number;
+  focusSignal: number;
+  initialQuery: string;
 };
 
 const emptyTaskListResponse: TaskListResponse = {
@@ -290,6 +298,89 @@ function formatProjectLabel(projects: Project[], projectId: string): string {
   return `${"  ".repeat(target.depth)}${target.name}`;
 }
 
+function getCaretPopoverPosition(element: HTMLInputElement | HTMLTextAreaElement) {
+  const mirror = document.createElement("div");
+  const computed = window.getComputedStyle(element);
+  const rect = element.getBoundingClientRect();
+  const propertiesToCopy = [
+    "boxSizing",
+    "width",
+    "height",
+    "paddingTop",
+    "paddingRight",
+    "paddingBottom",
+    "paddingLeft",
+    "borderTopWidth",
+    "borderRightWidth",
+    "borderBottomWidth",
+    "borderLeftWidth",
+    "fontFamily",
+    "fontSize",
+    "fontStyle",
+    "fontVariant",
+    "fontWeight",
+    "letterSpacing",
+    "lineHeight",
+    "textTransform",
+    "textIndent",
+    "textAlign",
+    "whiteSpace",
+    "wordSpacing",
+  ] as const;
+
+  mirror.style.position = "fixed";
+  mirror.style.left = `${rect.left}px`;
+  mirror.style.top = `${rect.top}px`;
+  mirror.style.visibility = "hidden";
+  mirror.style.overflow = "hidden";
+  mirror.style.whiteSpace = element instanceof HTMLTextAreaElement ? "pre-wrap" : "pre";
+  mirror.style.wordWrap = "break-word";
+
+  propertiesToCopy.forEach((property) => {
+    mirror.style[property] = computed[property];
+  });
+
+  if (element instanceof HTMLTextAreaElement) {
+    mirror.style.width = `${rect.width}px`;
+  }
+  mirror.scrollTop = element.scrollTop;
+  mirror.scrollLeft = element.scrollLeft;
+
+  const caretIndex = element.selectionStart ?? element.value.length;
+  mirror.textContent = element.value.slice(0, caretIndex);
+
+  const marker = document.createElement("span");
+  marker.textContent = "\u200b";
+  mirror.appendChild(marker);
+  document.body.appendChild(mirror);
+
+  const markerRect = marker.getBoundingClientRect();
+  document.body.removeChild(mirror);
+
+  return {
+    top: Math.min(markerRect.bottom + 8, window.innerHeight - 24),
+    left: Math.min(markerRect.left, window.innerWidth - 380),
+  };
+}
+
+function extractInlineTagTrigger(value: string, caretIndex: number) {
+  const beforeCaret = value.slice(0, caretIndex);
+  const match = beforeCaret.match(/(^|\s)[#＃]([^\s#＃]*)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const query = match[2] ?? "";
+  const tokenLength = 1 + query.length;
+  const tokenStart = caretIndex - tokenLength;
+
+  return {
+    nextValue: value.slice(0, tokenStart) + value.slice(caretIndex),
+    query,
+  };
+}
+
 export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string; viewId?: string }) {
   const router = useRouter();
   const [workspace, setWorkspace] = useState<WorkspaceState>({
@@ -301,6 +392,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       revisions: {},
   });
   const [taskTitle, setTaskTitle] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
   const [taskPriority, setTaskPriority] = useState("");
   const [taskTagIds, setTaskTagIds] = useState<string[]>([]);
@@ -314,6 +406,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [parentProjectId, setParentProjectId] = useState("");
   const [subprojectName, setSubprojectName] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [inlineTagPicker, setInlineTagPicker] = useState<InlineTagPickerState | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [taskListSort, setTaskListSort] = useState<ViewSort>(DEFAULT_TASK_LIST_SORT);
   const [collapsedProjectGroups, setCollapsedProjectGroups] = useState<Record<string, boolean>>({});
@@ -324,6 +417,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [shortcutPrefix, setShortcutPrefix] = useState<string | null>(null);
   const createTaskInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const inlineTagSourceRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
   const withExpectedRevision = (revisionKey: keyof FileRevisionMap | `task:${string}` | undefined, init?: RequestInit): RequestInit => {
     const headers = new Headers(init?.headers);
@@ -431,6 +525,31 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     }
   }, [selectedTask, viewId, workspace.tasks.items]);
 
+  useEffect(() => {
+    if (inlineTagPicker?.target === "edit" && !selectedTask) {
+      setInlineTagPicker(null);
+    }
+  }, [inlineTagPicker, selectedTask]);
+
+  useEffect(() => {
+    if (!inlineTagPicker) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (target instanceof HTMLElement && target.closest(".inline-tag-picker")) {
+        return;
+      }
+
+      closeInlineTagPicker();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => window.removeEventListener("pointerdown", handlePointerDown);
+  }, [inlineTagPicker]);
+
   const run = (action: () => Promise<void>, entityType?: EntityType) => {
     startTransition(() => {
       void action().catch((error: unknown) => {
@@ -439,11 +558,143 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     });
   };
 
+  const createInlineTag = async (name: string) => {
+    const createdTag = await readJson<Tag>("/api/tags", {
+      ...withJsonRevision("tag", { method: "POST" }),
+      body: JSON.stringify({ name }),
+    });
+    await refresh();
+    setMessage({ text: `Tag #${createdTag.name} created` });
+    return createdTag;
+  };
+
+  const setTagIdsForTarget = (target: InlineTagPickerState["target"], tagIds: string[]) => {
+    if (target === "edit") {
+      setSelectedTask((current) => (current ? { ...current, tag_ids: tagIds } : current));
+      return;
+    }
+
+    setTaskTagIds(tagIds);
+  };
+
+  const currentInlineTagIds =
+    inlineTagPicker?.target === "edit" ? selectedTask?.tag_ids ?? [] : taskTagIds;
+
+  const renderTagSelectionSummary = (tagIds: string[], target: InlineTagPickerState["target"]) => {
+    const selectedTags = tagIds
+      .map((tagId) => workspace.tags.find((tag) => tag.id === tagId))
+      .filter((tag): tag is Tag => Boolean(tag));
+
+    return (
+      <div className="inline-tag-summary">
+        {selectedTags.length > 0 ? (
+          <div className="chip-list inline-tag-summary__chips">
+            {selectedTags.map((tag) => (
+              <button
+                key={tag.id}
+                className="tag-cloud__chip"
+                type="button"
+                onClick={() => setTagIdsForTarget(target, tagIds.filter((tagId) => tagId !== tag.id))}
+              >
+                <span>{`#${tag.name}`}</span>
+                <span aria-hidden="true">×</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="section-caption">No tags selected.</p>
+        )}
+        <button
+          className="button-secondary"
+          type="button"
+          onClick={() => {
+            inlineTagSourceRef.current = null;
+            openInlineTagPicker(target, { top: Math.min(window.innerHeight - 240, 220), left: Math.min(window.innerWidth - 380, 240) });
+          }}
+        >
+          Open tag picker
+        </button>
+      </div>
+    );
+  };
+
   const resetCreateTaskForm = () => {
     setTaskTitle("");
+    setTaskDescription("");
     setTaskDueDate("");
     setTaskPriority("");
     setTaskTagIds([]);
+    setInlineTagPicker(null);
+  };
+
+  const openInlineTagPicker = (
+    target: InlineTagPickerState["target"],
+    position: Pick<InlineTagPickerState, "top" | "left">,
+    initialQuery = "",
+  ) => {
+    setInlineTagPicker((current) => ({
+      target,
+      top: position.top,
+      left: position.left,
+      focusSignal: (current?.focusSignal ?? 0) + 1,
+      initialQuery,
+    }));
+  };
+
+  const closeInlineTagPicker = () => {
+    setInlineTagPicker(null);
+  };
+
+  const closeInlineTagPickerAndRestoreFocus = () => {
+    const source = inlineTagSourceRef.current;
+    setInlineTagPicker(null);
+
+    if (!source) {
+      return;
+    }
+
+    window.setTimeout(() => {
+      source.focus();
+      const caret = source.selectionStart ?? source.value.length;
+      source.setSelectionRange?.(caret, caret);
+    }, 0);
+  };
+
+  const handleInlineTagShortcut = (
+    event: ReactKeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+    target: InlineTagPickerState["target"],
+  ) => {
+    if (event.nativeEvent.isComposing) {
+      return;
+    }
+
+    if (event.key !== "#" && event.key !== "＃") {
+      return;
+    }
+
+    event.preventDefault();
+    inlineTagSourceRef.current = event.currentTarget;
+    const position = getCaretPopoverPosition(event.currentTarget);
+    openInlineTagPicker(target, position);
+  };
+
+  const handleInlineTagInput = (
+    element: HTMLInputElement | HTMLTextAreaElement,
+    target: InlineTagPickerState["target"],
+    updateValue: (value: string) => void,
+  ) => {
+    const caretIndex = element.selectionStart ?? element.value.length;
+    const trigger = extractInlineTagTrigger(element.value, caretIndex);
+
+    if (!trigger) {
+      updateValue(element.value);
+      return;
+    }
+
+    updateValue(trigger.nextValue);
+    inlineTagSourceRef.current = element;
+    const position = getCaretPopoverPosition(element);
+    openInlineTagPicker(target, position, trigger.query);
   };
 
   const toggleViewProjectFilterId = (value: string, checked: boolean) => {
@@ -1088,6 +1339,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     ...withJsonRevision(`task:${projectId ?? INBOX_PROJECT_ID}`, { method: "POST" }),
                     body: JSON.stringify({
                       title: taskTitle,
+                      description: taskDescription.trim() || null,
                       due_date: fromDateTimeLocal(taskDueDate),
                       priority: taskPriority === "" ? null : Number(taskPriority),
                       tag_ids: taskTagIds,
@@ -1100,7 +1352,21 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 }, "task");
               }}
             >
-              <input required ref={createTaskInputRef} value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder="New task" />
+              <input
+                required
+                ref={createTaskInputRef}
+                value={taskTitle}
+                onChange={(event) => handleInlineTagInput(event.currentTarget, "create", setTaskTitle)}
+                onKeyDown={(event) => handleInlineTagShortcut(event, "create")}
+                placeholder="New task"
+              />
+              <textarea
+                rows={3}
+                value={taskDescription}
+                onChange={(event) => handleInlineTagInput(event.currentTarget, "create", setTaskDescription)}
+                onKeyDown={(event) => handleInlineTagShortcut(event, "create")}
+                placeholder="New description"
+              />
               <input type="datetime-local" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} />
               <select value={taskPriority} onChange={(event) => setTaskPriority(event.target.value)}>
                 <option value="">Priority</option>
@@ -1110,12 +1376,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   </option>
                 ))}
               </select>
-              <TagCloud
-                tags={workspace.tags}
-                selectedTagIds={taskTagIds}
-                onChange={setTaskTagIds}
-                inputPlaceholder="Add tags"
-              />
+              {renderTagSelectionSummary(taskTagIds, "create")}
               <button disabled={isPending || !taskTitle.trim()} type="submit">
                 Add task
               </button>
@@ -1220,6 +1481,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     ...withJsonRevision(`task:${selectedTask.project_id}`, { method: "PATCH" }),
                     body: JSON.stringify({
                       title: selectedTask.title,
+                      description: selectedTask.description,
                       due_date: selectedTask.due_date,
                       priority: selectedTask.priority,
                       tag_ids: selectedTask.tag_ids,
@@ -1238,7 +1500,23 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               ) : null}
               <input
                 value={selectedTask.title}
-                onChange={(event) => setSelectedTask((current) => (current ? { ...current, title: event.target.value } : current))}
+                onChange={(event) =>
+                  handleInlineTagInput(event.currentTarget, "edit", (value) =>
+                    setSelectedTask((current) => (current ? { ...current, title: value } : current)),
+                  )
+                }
+                onKeyDown={(event) => handleInlineTagShortcut(event, "edit")}
+              />
+              <textarea
+                rows={4}
+                value={selectedTask.description ?? ""}
+                onChange={(event) =>
+                  handleInlineTagInput(event.currentTarget, "edit", (value) =>
+                    setSelectedTask((current) => (current ? { ...current, description: value || null } : current)),
+                  )
+                }
+                onKeyDown={(event) => handleInlineTagShortcut(event, "edit")}
+                placeholder="Task description"
               />
               <input
                 type="datetime-local"
@@ -1279,14 +1557,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   </option>
                 ))}
               </select>
-              <TagCloud
-                tags={workspace.tags}
-                selectedTagIds={selectedTask.tag_ids}
-                onChange={(tagIds) =>
-                  setSelectedTask((current) => (current ? { ...current, tag_ids: tagIds } : current))
-                }
-                inputPlaceholder="Add tags"
-              />
+              {renderTagSelectionSummary(selectedTask.tag_ids, "edit")}
               <button disabled={isPending || !selectedTask.title.trim()} type="submit">
                 Save task
               </button>
@@ -1435,6 +1706,27 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           )}
         </div>
       </section>
+      {inlineTagPicker ? (
+        <div
+          className="inline-tag-picker"
+          style={{
+            top: `${inlineTagPicker.top}px`,
+            left: `${inlineTagPicker.left}px`,
+          }}
+        >
+          <TagCloud
+            tags={workspace.tags}
+            selectedTagIds={currentInlineTagIds}
+            onChange={(tagIds) => setTagIdsForTarget(inlineTagPicker.target, tagIds)}
+            inputPlaceholder="Add tags"
+            onCreateTag={createInlineTag}
+            focusSignal={inlineTagPicker.focusSignal}
+            initialQuery={inlineTagPicker.initialQuery}
+            onRequestClose={closeInlineTagPickerAndRestoreFocus}
+            onTagCommitted={closeInlineTagPickerAndRestoreFocus}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
