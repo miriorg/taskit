@@ -51,6 +51,54 @@ class TaskRepositoryStub {
   }
 }
 
+describe("TagService.create", () => {
+  it("rejects duplicate tag names case-insensitively", async () => {
+    const service = new TagService(
+      new TagRepositoryStub({
+        schema_version: 1,
+        updated_at: "2026-03-22T00:00:00.000Z",
+        tags: [
+          {
+            id: "tag-android",
+            name: "Android",
+            created_at: "2026-03-22T00:00:00.000Z",
+            updated_at: "2026-03-22T00:00:00.000Z",
+          },
+        ],
+      }) as never,
+    );
+
+    await expect(service.create({ name: " android " })).rejects.toThrow("Tag name already exists");
+  });
+});
+
+describe("TagService.update", () => {
+  it("rejects renaming to an existing tag name case-insensitively", async () => {
+    const service = new TagService(
+      new TagRepositoryStub({
+        schema_version: 1,
+        updated_at: "2026-03-22T00:00:00.000Z",
+        tags: [
+          {
+            id: "tag-android",
+            name: "Android",
+            created_at: "2026-03-22T00:00:00.000Z",
+            updated_at: "2026-03-22T00:00:00.000Z",
+          },
+          {
+            id: "tag-ios",
+            name: "iOS",
+            created_at: "2026-03-22T00:00:00.000Z",
+            updated_at: "2026-03-22T00:00:00.000Z",
+          },
+        ],
+      }) as never,
+    );
+
+    await expect(service.update("tag-ios", { name: "ANDROID" })).rejects.toThrow("Tag name already exists");
+  });
+});
+
 describe("TagService.delete", () => {
   it("removes deleted tag references from task files", async () => {
     const taskRepository = new TaskRepositoryStub([

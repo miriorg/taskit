@@ -20,3 +20,7 @@ tsconfig.typecheck.tsbuildinfo
 
 # Vercel local project linkage
 .vercel/
+
+# Local dev server logs
+.codex-next-dev.out.log
+.codex-next-dev.err.log

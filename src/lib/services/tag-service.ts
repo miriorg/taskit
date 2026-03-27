@@ -6,6 +6,10 @@ import { TaskRepository } from "@/lib/repositories/task-repository";
 import { createTagInputSchema, updateTagInputSchema } from "@/lib/validators";
 import type { CreateTagInput, Tag, TagListResponse, UpdateTagInput } from "@/types";
 
+function normalizeTagName(name: string) {
+  return name.trim().toLowerCase();
+}
+
 export class TagService {
   constructor(
     private readonly tagRepository: TagRepository = new TagRepository(),
@@ -35,7 +39,7 @@ export class TagService {
       throw new Error("Tag master is not initialized");
     }
 
-    if (master.tags.some((tag) => tag.name === payload.name)) {
+    if (master.tags.some((tag) => normalizeTagName(tag.name) === normalizeTagName(payload.name))) {
       throw new Error("Tag name already exists");
     }
 
@@ -73,7 +77,9 @@ export class TagService {
       throw new Error("Tag not found");
     }
 
-    if (payload.name && master.tags.some((tag) => tag.id !== tagId && tag.name === payload.name)) {
+    const normalizedRequestedName = payload.name ? normalizeTagName(payload.name) : null;
+
+    if (normalizedRequestedName && master.tags.some((tag) => tag.id !== tagId && normalizeTagName(tag.name) === normalizedRequestedName)) {
       throw new Error("Tag name already exists");
     }
 
