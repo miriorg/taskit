@@ -8,7 +8,7 @@ body {
 :root {
   --icon-size-sm: 18px;
   --icon-size-md: 24px;
-  --icon-button-size: 24px;
+  --icon-button-size: 20px;
 }
 
 * {
@@ -177,6 +177,10 @@ select {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
 }
 
+.tag-cloud__selected-list {
+  margin: 0;
+}
+
 .tag-cloud__chip {
   display: inline-flex;
   align-items: center;
@@ -238,6 +242,18 @@ select {
   margin: 0;
   color: #9f2e21;
   font-size: 0.85rem;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .field-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .inline-tag-summary {
@@ -425,6 +441,11 @@ select {
   color: #173049;
 }
 
+.task-list-toolbar {
+  display: grid;
+  gap: 8px;
+}
+
 .sort-bar {
   display: flex;
   flex-wrap: wrap;
@@ -436,10 +457,11 @@ select {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 9px 12px;
+  padding: 2px 10px;
   border-radius: 10px;
   background: #d8e7f1;
   color: #173049;
+  line-height: 1.2;
 }
 
 .sort-button--active {
@@ -449,8 +471,26 @@ select {
 
 .sort-button__active-indicator {
   display: block;
-  width: 18px;
-  height: 18px;
+  width: 28px;
+  height: 28px;
+}
+
+@media (min-width: 980px) {
+  .task-list-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .task-summary-bar {
+    margin-bottom: 12px;
+  }
+
+  .sort-bar {
+    justify-content: flex-end;
+    margin-left: auto;
+  }
 }
 
 .project-groups {

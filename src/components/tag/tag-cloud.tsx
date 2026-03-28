@@ -8,6 +8,7 @@ type TagCloudProps = {
   tags: Tag[];
   selectedTagIds: string[];
   onChange: (tagIds: string[]) => void;
+  selectedChipVariant?: "compact" | "tag";
   inputPlaceholder?: string;
   onCreateTag?: (name: string) => Promise<Tag>;
   focusSignal?: number;
@@ -42,6 +43,7 @@ export function TagCloud({
   tags,
   selectedTagIds,
   onChange,
+  selectedChipVariant = "compact",
   inputPlaceholder = "Search tags",
   onCreateTag,
   focusSignal = 0,
@@ -167,12 +169,31 @@ export function TagCloud({
   return (
     <div className="tag-cloud">
       <div className="tag-cloud__control">
-        {selectedTags.map((tag) => (
-          <button key={tag.id} className="tag-cloud__chip" type="button" onClick={() => removeTag(tag.id)}>
-            <span>{`#${tag.name}`}</span>
-            <span aria-hidden="true">×</span>
-          </button>
-        ))}
+        {selectedChipVariant === "tag" ? (
+          <ul className="chip-list tag-cloud__selected-list">
+            {selectedTags.map((tag) => (
+              <li key={tag.id} className="chip">
+                <span className="chip__label">{tag.name}</span>
+                <button
+                  aria-label={`Remove tag ${tag.name}`}
+                  className="chip__icon-button"
+                  title="Remove"
+                  type="button"
+                  onClick={() => removeTag(tag.id)}
+                >
+                  <img alt="" aria-hidden="true" className="chip__icon" src="/icons/cross_l.svg" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          selectedTags.map((tag) => (
+            <button key={tag.id} className="tag-cloud__chip" type="button" onClick={() => removeTag(tag.id)}>
+              <span>{`#${tag.name}`}</span>
+              <span aria-hidden="true">×</span>
+            </button>
+          ))
+        )}
         <label className="tag-cloud__input-wrap">
           <span aria-hidden="true" className="tag-cloud__icon">
             #

@@ -1331,6 +1331,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             <TagCloud
               tags={workspace.tags}
               selectedTagIds={viewDraft.filters.tag_ids}
+              selectedChipVariant="tag"
               onChange={(tagIds) =>
                 setViewDraft((current) => ({
                   ...current,
@@ -1537,15 +1538,17 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 onKeyDown={(event) => handleInlineTagShortcut(event, "create")}
                 placeholder="New description"
               />
-              <input type="datetime-local" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} />
-              <select value={taskPriority} onChange={(event) => setTaskPriority(event.target.value)}>
-                <option value="">Priority</option>
-                {Array.from({ length: 10 }, (_, value) => (
-                  <option key={value} value={value}>
-                    P{value}
-                  </option>
-                ))}
-              </select>
+              <div className="field-row">
+                <input type="datetime-local" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} />
+                <select value={taskPriority} onChange={(event) => setTaskPriority(event.target.value)}>
+                  <option value="">Priority</option>
+                  {Array.from({ length: 10 }, (_, value) => (
+                    <option key={value} value={value}>
+                      P{value}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {renderTagSelectionSummary(taskTagIds, "create")}
               <button disabled={isPending || !taskTitle.trim()} type="submit">
                 Add task
@@ -1566,33 +1569,35 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               <span>子プロジェクトを含める</span>
             </label>
           ) : null}
-          <div className="task-summary-bar">
-            <span className="task-summary-pill">{`${visibleTaskCount} open`}</span>
-            <span className="task-summary-pill">{`${completedTaskCount} completed`}</span>
-          </div>
-          <div className="sort-bar">
-            {SORT_BUTTONS.map((item) => {
-              const isActive = taskListSort.active_key === item.key;
-              const activeDirection = taskListSort.directions[item.key];
+          <div className="task-list-toolbar">
+            <div className="task-summary-bar">
+              <span className="task-summary-pill">{`${visibleTaskCount} open`}</span>
+              <span className="task-summary-pill">{`${completedTaskCount} completed`}</span>
+            </div>
+            <div className="sort-bar">
+              {SORT_BUTTONS.map((item) => {
+                const isActive = taskListSort.active_key === item.key;
+                const activeDirection = taskListSort.directions[item.key];
 
-              return (
-                <button
-                  key={item.key}
-                  className={`sort-button${isActive ? " sort-button--active" : " button-secondary"}`}
-                  type="button"
-                  onClick={() => handleTaskListSortChange(item.key)}
-                >
-                  <span>{item.label}</span>
-                  {isActive ? (
-                    <img
-                      alt={activeDirection === "asc" ? "Ascending sort" : "Descending sort"}
-                      className="sort-button__active-indicator"
-                      src={activeDirection === "asc" ? "/icons/triangle-asc.svg" : "/icons/triangle-dsc.svg"}
-                    />
-                  ) : null}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={item.key}
+                    className={`sort-button${isActive ? " sort-button--active" : " button-secondary"}`}
+                    type="button"
+                    onClick={() => handleTaskListSortChange(item.key)}
+                  >
+                    <span>{item.label}</span>
+                    {isActive ? (
+                      <img
+                        alt={activeDirection === "asc" ? "Ascending sort" : "Descending sort"}
+                        className="sort-button__active-indicator"
+                        src={activeDirection === "asc" ? "/icons/triangle-asc.svg" : "/icons/triangle-dsc.svg"}
+                      />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           {renderTaskCollection(sortedVisibleTasks, visibleTaskGroups)}
           {isDoneProjectPage
@@ -1693,13 +1698,35 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 onKeyDown={(event) => handleInlineTagShortcut(event, "edit")}
                 placeholder="Task description"
               />
-              <input
-                type="datetime-local"
-                value={toDateTimeLocal(selectedTask.due_date)}
-                onChange={(event) =>
-                  setSelectedTask((current) => (current ? { ...current, due_date: fromDateTimeLocal(event.target.value) } : current))
-                }
-              />
+              <div className="field-row">
+                <input
+                  type="datetime-local"
+                  value={toDateTimeLocal(selectedTask.due_date)}
+                  onChange={(event) =>
+                    setSelectedTask((current) => (current ? { ...current, due_date: fromDateTimeLocal(event.target.value) } : current))
+                  }
+                />
+                <select
+                  value={selectedTask.priority ?? ""}
+                  onChange={(event) =>
+                    setSelectedTask((current) =>
+                      current
+                        ? {
+                            ...current,
+                            priority: event.target.value === "" ? null : Number(event.target.value),
+                          }
+                        : current,
+                    )
+                  }
+                >
+                  <option value="">Priority</option>
+                  {Array.from({ length: 10 }, (_, value) => (
+                    <option key={value} value={value}>
+                      P{value}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <select
                 value={selectedTask.project_id}
                 onChange={(event) =>
@@ -1709,26 +1736,6 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 {workspace.projects.map((project) => (
                   <option key={project.id} value={project.id}>
                     {formatProjectLabel(workspace.projects, project.id)}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={selectedTask.priority ?? ""}
-                onChange={(event) =>
-                  setSelectedTask((current) =>
-                    current
-                      ? {
-                          ...current,
-                          priority: event.target.value === "" ? null : Number(event.target.value),
-                        }
-                      : current,
-                  )
-                }
-              >
-                <option value="">Priority</option>
-                {Array.from({ length: 10 }, (_, value) => (
-                  <option key={value} value={value}>
-                    P{value}
                   </option>
                 ))}
               </select>
@@ -1837,6 +1844,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 <TagCloud
                   tags={workspace.tags}
                   selectedTagIds={viewDraft.filters.tag_ids}
+                  selectedChipVariant="tag"
                   onChange={(tagIds) =>
                     setViewDraft((current) => ({
                       ...current,
