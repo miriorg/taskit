@@ -1,0 +1,391 @@
+.page {
+  min-height: 100vh;
+  padding: 32px;
+  background:
+    radial-gradient(circle at top left, rgba(201, 126, 69, 0.16), transparent 24%),
+    linear-gradient(180deg, #efe6d8 0%, #e6dfd3 100%);
+  color: #1e2522;
+}
+
+.pageHeader {
+  margin-bottom: 20px;
+}
+
+.pageHeader h1 {
+  margin: 0 0 8px;
+  font-size: 34px;
+  line-height: 1.1;
+}
+
+.pageHeader p {
+  margin: 0;
+  color: #5a615d;
+  font-size: 15px;
+}
+
+.recommendationPanel {
+  max-width: 880px;
+  margin-bottom: 28px;
+  border: 1px solid rgba(30, 37, 34, 0.12);
+  border-radius: 18px;
+  padding: 18px 20px;
+  background: rgba(255, 251, 245, 0.78);
+  box-shadow: 0 14px 30px rgba(30, 37, 34, 0.06);
+}
+
+.recommendationPanel h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.recommendationPanel p {
+  margin: 0;
+  color: #46504b;
+  line-height: 1.6;
+}
+
+.grid {
+  display: grid;
+  gap: 26px;
+}
+
+.preview {
+  display: grid;
+  gap: 12px;
+}
+
+.previewHeader h2 {
+  margin: 2px 0 6px;
+  font-size: 26px;
+}
+
+.previewHeader p {
+  margin: 0;
+  color: #56605b;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #68736d;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.recommendation {
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: #1f5c46;
+  color: #f5f0e8;
+}
+
+.mock {
+  display: grid;
+  grid-template-columns: 220px 1fr 320px;
+  min-height: 600px;
+  overflow: hidden;
+  border: 1px solid rgba(30, 37, 34, 0.12);
+  border-radius: 24px;
+  background: #f7f2e8;
+  box-shadow: 0 18px 40px rgba(30, 37, 34, 0.08);
+}
+
+.sidebar {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+  background: linear-gradient(180deg, #213b33 0%, #315548 100%);
+}
+
+.mainPanel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+  background: linear-gradient(180deg, rgba(255, 251, 245, 0.88) 0%, rgba(248, 242, 232, 0.98) 100%);
+}
+
+.detailPanel {
+  padding: 18px 18px 18px 0;
+}
+
+.sidePanel,
+.workspacePanel {
+  border: 1px solid rgba(30, 37, 34, 0.1);
+  border-radius: 16px;
+  padding: 15px;
+  background: rgba(255, 252, 247, 0.94);
+}
+
+.panelTitle {
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.simpleList,
+.taskList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.simpleList li {
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(228, 217, 197, 0.76);
+}
+
+.tagRow,
+.selectionSummary,
+.inlineOptions,
+.scopeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag,
+.summaryChip,
+.optionPill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #e6d7bf;
+  color: #233029;
+  font-size: 12px;
+}
+
+.summaryChipButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #ddcfb6;
+  color: #233029;
+  font: inherit;
+}
+
+.summaryChipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(31, 92, 70, 0.14);
+  color: #1f5c46;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.workspaceHeader,
+.taskListHeader,
+.fieldLabelRow,
+.miniPickerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.subtitle,
+.helperText,
+.taskMeta,
+.triggerMeta {
+  color: #64706a;
+  font-size: 13px;
+}
+
+.formStack {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.inputMock,
+.searchField,
+.pickerTrigger {
+  border: 1px solid rgba(30, 37, 34, 0.12);
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: #fffdfa;
+  color: #6c766f;
+}
+
+.pickerTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 10px;
+  text-align: left;
+}
+
+.taskRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(30, 37, 34, 0.1);
+  border-radius: 14px;
+  padding: 12px;
+  background: #fffdfa;
+}
+
+.filterCard {
+  display: grid;
+  gap: 12px;
+}
+
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: #55605a;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.checkboxGrid,
+.miniPickerList {
+  display: grid;
+  gap: 8px;
+}
+
+.checkboxItem,
+.miniPickerRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: rgba(228, 217, 197, 0.42);
+}
+
+.compactTree {
+  display: grid;
+  gap: 8px;
+}
+
+.treeSectionLabel {
+  color: #64706a;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.treeRow,
+.treeRowSelected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 40px;
+  border-radius: 12px;
+  padding: 0 12px;
+  background: rgba(228, 217, 197, 0.42);
+}
+
+.treeRowSelected {
+  background: rgba(198, 95, 54, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(198, 95, 54, 0.2);
+}
+
+.treeLabel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.disclosure {
+  color: #6e766f;
+  font-size: 12px;
+}
+
+.countBadge {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(31, 92, 70, 0.1);
+  color: #1f5c46;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.miniPicker {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(30, 37, 34, 0.1);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 253, 250, 0.86);
+}
+
+.primaryButton,
+.ghostButton,
+.scopeButton,
+.scopeButtonActive {
+  border: 1px solid rgba(30, 37, 34, 0.12);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font: inherit;
+}
+
+.primaryButton {
+  background: #c65f36;
+  color: #fff8f2;
+}
+
+.ghostButton,
+.scopeButton {
+  background: #fffdfa;
+  color: #233029;
+}
+
+.scopeButtonActive {
+  background: #1f5c46;
+  color: #f7f2e8;
+}
+
+@media (max-width: 1280px) {
+  .mock {
+    grid-template-columns: 1fr;
+  }
+
+  .detailPanel {
+    padding: 0 18px 18px;
+  }
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 18px;
+  }
+
+  .pageHeader h1 {
+    font-size: 28px;
+  }
+
+  .workspaceHeader,
+  .taskRow,
+  .fieldLabelRow,
+  .miniPickerHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

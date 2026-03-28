@@ -144,6 +144,7 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 0;
   padding: 0;
   border: 0;
   width: var(--icon-button-size);
@@ -447,8 +448,9 @@ select {
 }
 
 .sort-button__active-indicator {
-  font-size: 12px;
-  font-weight: 800;
+  display: block;
+  width: 18px;
+  height: 18px;
 }
 
 .project-groups {
@@ -636,6 +638,61 @@ select {
   margin-bottom: 12px;
 }
 
+.project-filter {
+  display: grid;
+  gap: 12px;
+}
+
+.project-filter__tree {
+  display: grid;
+  gap: 8px;
+}
+
+.project-filter__tree-label {
+  color: #466173;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.project-filter__tree-row {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  border: 1px solid rgba(23, 48, 73, 0.14);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.project-filter__tree-row--selected {
+  background: #edf3f7;
+}
+
+.project-filter__tree-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.project-filter__disclosure {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #466173;
+}
+
+.project-filter__disclosure--placeholder {
+  font-size: 10px;
+}
+
 input,
 textarea,
 button,
@@ -652,6 +709,7 @@ textarea {
 }
 
 button {
+  min-width: 48px;
   background: #d1693f;
   color: #fff9f3;
   cursor: pointer;

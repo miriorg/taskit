@@ -39,6 +39,8 @@ type InlineTagPickerState = {
   initialQuery: string;
 };
 
+type IndentedProject = Project & { depth: number };
+
 const emptyTaskListResponse: TaskListResponse = {
   items: [],
   todoItems: [],
@@ -96,12 +98,6 @@ const compactDateFormatter = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",
 });
-
-function formatSortSummary(sort: ViewSort): string {
-  const active = SORT_BUTTONS.find((item) => item.key === sort.active_key);
-  const direction = sort.directions[sort.active_key] === "asc" ? "Asc" : "Desc";
-  return `${active?.label ?? "Due"} ${direction}`;
-}
 function createDefaultViewDraft(projectId?: string, sort: ViewSort = DEFAULT_TASK_LIST_SORT): ViewDraft {
   return {
     name: "",
@@ -244,7 +240,7 @@ function fromDateTimeLocal(localValue: string): string | null {
   return new Date(localValue).toISOString();
 }
 
-function getIndentedProjects(projects: Project[]): Array<Project & { depth: number }> {
+function getIndentedProjects(projects: Project[]): IndentedProject[] {
   const childrenByParent = new Map<string | null, Project[]>();
 
   projects.forEach((project) => {
@@ -254,7 +250,7 @@ function getIndentedProjects(projects: Project[]): Array<Project & { depth: numb
   });
 
   const sortProjects = (items: Project[]) => [...items].sort((left, right) => left.name.localeCompare(right.name));
-  const ordered: Array<Project & { depth: number }> = [];
+  const ordered: IndentedProject[] = [];
 
   const walk = (parentId: string | null, depth: number) => {
     sortProjects(childrenByParent.get(parentId) ?? []).forEach((project) => {
@@ -297,6 +293,136 @@ function formatProjectLabel(projects: Project[], projectId: string): string {
   }
 
   return `${"  ".repeat(target.depth)}${target.name}`;
+}
+
+function buildInitialExpandedProjectIds(projects: Project[], selectedProjectIds: string[]): string[] {
+  const expanded = new Set<string>();
+  const parentById = new Map(projects.map((project) => [project.id, project.parent_id]));
+
+  projects.forEach((project) => {
+    if (project.parent_id === null) {
+      expanded.add(project.id);
+    }
+  });
+
+  selectedProjectIds.forEach((projectId) => {
+    let parentId = parentById.get(projectId) ?? null;
+
+    while (parentId) {
+      expanded.add(parentId);
+      parentId = parentById.get(parentId) ?? null;
+    }
+  });
+
+  return Array.from(expanded);
+}
+
+type ViewProjectFilterProps = {
+  projects: Project[];
+  selectedProjectIds: string[];
+  expandedProjectIds: string[];
+  onToggleProject: (projectId: string, checked: boolean) => void;
+  onToggleExpanded: (projectId: string) => void;
+};
+
+function ViewProjectFilter({
+  projects,
+  selectedProjectIds,
+  expandedProjectIds,
+  onToggleProject,
+  onToggleExpanded,
+}: ViewProjectFilterProps) {
+  const orderedProjects = getIndentedProjects(projects);
+  const projectById = new Map(projects.map((project) => [project.id, project]));
+  const expandedSet = new Set(expandedProjectIds);
+  const selectedSet = new Set(selectedProjectIds);
+  const selectedProjects = selectedProjectIds
+    .map((projectId) => projectById.get(projectId))
+    .filter((project): project is Project => Boolean(project));
+  const childrenByParent = new Map<string | null, Project[]>();
+
+  projects.forEach((project) => {
+    const children = childrenByParent.get(project.parent_id) ?? [];
+    children.push(project);
+    childrenByParent.set(project.parent_id, children);
+  });
+
+  const isVisible = (project: IndentedProject) => {
+    let parentId = project.parent_id;
+
+    while (parentId) {
+      if (!expandedSet.has(parentId)) {
+        return false;
+      }
+
+      parentId = projectById.get(parentId)?.parent_id ?? null;
+    }
+
+    return true;
+  };
+
+  return (
+    <div className="project-filter">
+      <ul className="chip-list">
+        {selectedProjects.length > 0 ? (
+          selectedProjects.map((project) => (
+            <li key={project.id} className="chip">
+              <span className="chip__label">{project.name}</span>
+              <button
+                aria-label={`Remove project ${project.name}`}
+                className="chip__icon-button"
+                title="Remove"
+                type="button"
+                onClick={() => onToggleProject(project.id, false)}
+              >
+                <img alt="" aria-hidden="true" className="chip__icon" src="/icons/cross_l.svg" />
+              </button>
+            </li>
+          ))
+        ) : (
+          <li className="section-caption">No projects selected.</li>
+        )}
+      </ul>
+      <div className="project-filter__tree">
+        <div className="project-filter__tree-label">Project tree</div>
+        {orderedProjects.filter(isVisible).map((project) => {
+          const hasChildren = (childrenByParent.get(project.id)?.length ?? 0) > 0;
+          const isExpanded = expandedSet.has(project.id);
+          const isSelected = selectedSet.has(project.id);
+
+          return (
+            <label
+              key={project.id}
+              className={isSelected ? "project-filter__tree-row project-filter__tree-row--selected" : "project-filter__tree-row"}
+              style={{ paddingLeft: `${12 + project.depth * 18}px` }}
+            >
+              <div className="project-filter__tree-main">
+                {hasChildren ? (
+                  <button
+                    aria-label={isExpanded ? `Collapse ${project.name}` : `Expand ${project.name}`}
+                    className="project-filter__disclosure"
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onToggleExpanded(project.id);
+                    }}
+                  >
+                    {isExpanded ? "▾" : "▸"}
+                  </button>
+                ) : (
+                  <span aria-hidden="true" className="project-filter__disclosure project-filter__disclosure--placeholder">
+                    •
+                  </span>
+                )}
+                <input checked={isSelected} type="checkbox" onChange={(event) => onToggleProject(project.id, event.target.checked)} />
+                <span>{project.name}</span>
+              </div>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function getCaretPopoverPosition(element: HTMLInputElement | HTMLTextAreaElement) {
@@ -417,6 +543,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [message, setMessage] = useState<UiMessage | null>(null);
   const [isPending, startTransition] = useTransition();
   const [shortcutPrefix, setShortcutPrefix] = useState<string | null>(null);
+  const [expandedViewProjectIds, setExpandedViewProjectIds] = useState<string[]>([]);
   const createTaskInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const inlineTagSourceRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
@@ -510,13 +637,16 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       const nextDraft = createViewDraftFromView(workspace.currentView);
       setViewDraft(nextDraft);
       setTaskListSort(nextDraft.sort);
+      setExpandedViewProjectIds(buildInitialExpandedProjectIds(workspace.projects, nextDraft.filters.project_ids));
       return;
     }
 
     const nextSort = DEFAULT_TASK_LIST_SORT;
-    setViewDraft(createDefaultViewDraft(projectId, nextSort));
+    const nextDraft = createDefaultViewDraft(projectId, nextSort);
+    setViewDraft(nextDraft);
     setTaskListSort(nextSort);
-  }, [projectId, viewId, workspace.currentView]);
+    setExpandedViewProjectIds(buildInitialExpandedProjectIds(workspace.projects, nextDraft.filters.project_ids));
+  }, [projectId, viewId, workspace.currentView, workspace.projects]);
 
   useEffect(() => {
     if (!viewId || !selectedTask) {
@@ -710,6 +840,12 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           : current.filters.project_ids.filter((id) => id !== value),
       },
     }));
+  };
+
+  const toggleExpandedViewProjectId = (value: string) => {
+    setExpandedViewProjectIds((current) =>
+      current.includes(value) ? current.filter((projectId) => projectId !== value) : [...current, value],
+    );
   };
 
   const openTaskEditor = (taskId: string) => {
@@ -1154,7 +1290,6 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               <option value="overdue">Overdue</option>
               <option value="none">No due date</option>
             </select>
-            <p className="section-caption">{`Sort: ${formatSortSummary(viewDraft.sort)}`}</p>
             <label className="checkbox-item">
               <input
                 checked={viewDraft.display_options.show_completed}
@@ -1186,18 +1321,13 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               />
               <span>Include child projects</span>
             </label>
-            <div className="checkbox-grid">
-              {workspace.projects.map((project) => (
-                <label key={project.id} className="checkbox-item">
-                  <input
-                    checked={viewDraft.filters.project_ids.includes(project.id)}
-                    type="checkbox"
-                    onChange={(event) => toggleViewProjectFilterId(project.id, event.target.checked)}
-                  />
-                  <span>{project.name}</span>
-                </label>
-              ))}
-            </div>
+            <ViewProjectFilter
+              projects={workspace.projects}
+              selectedProjectIds={viewDraft.filters.project_ids}
+              expandedProjectIds={expandedViewProjectIds}
+              onToggleProject={toggleViewProjectFilterId}
+              onToggleExpanded={toggleExpandedViewProjectId}
+            />
             <TagCloud
               tags={workspace.tags}
               selectedTagIds={viewDraft.filters.tag_ids}
@@ -1439,7 +1569,6 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           <div className="task-summary-bar">
             <span className="task-summary-pill">{`${visibleTaskCount} open`}</span>
             <span className="task-summary-pill">{`${completedTaskCount} completed`}</span>
-            <span className="task-summary-pill">{formatSortSummary(taskListSort)}</span>
           </div>
           <div className="sort-bar">
             {SORT_BUTTONS.map((item) => {
@@ -1454,7 +1583,13 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   onClick={() => handleTaskListSortChange(item.key)}
                 >
                   <span>{item.label}</span>
-                  {isActive ? <span className="sort-button__active-indicator">{activeDirection === "asc" ? "▲" : "▼"}</span> : null}
+                  {isActive ? (
+                    <img
+                      alt={activeDirection === "asc" ? "Ascending sort" : "Descending sort"}
+                      className="sort-button__active-indicator"
+                      src={activeDirection === "asc" ? "/icons/triangle-asc.svg" : "/icons/triangle-dsc.svg"}
+                    />
+                  ) : null}
                 </button>
               );
             })}
@@ -1661,7 +1796,6 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   <option value="overdue">Overdue</option>
                   <option value="none">No due date</option>
                 </select>
-                <p className="section-caption">{`Sort: ${formatSortSummary(viewDraft.sort)}`}</p>
                 <label className="checkbox-item">
                   <input
                     checked={viewDraft.display_options.show_completed}
@@ -1693,18 +1827,13 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   />
                   <span>Include child projects</span>
                 </label>
-                <div className="checkbox-grid">
-                  {workspace.projects.map((project) => (
-                    <label key={project.id} className="checkbox-item">
-                      <input
-                        checked={viewDraft.filters.project_ids.includes(project.id)}
-                        type="checkbox"
-                        onChange={(event) => toggleViewProjectFilterId(project.id, event.target.checked)}
-                      />
-                      <span>{project.name}</span>
-                    </label>
-                  ))}
-                </div>
+                <ViewProjectFilter
+                  projects={workspace.projects}
+                  selectedProjectIds={viewDraft.filters.project_ids}
+                  expandedProjectIds={expandedViewProjectIds}
+                  onToggleProject={toggleViewProjectFilterId}
+                  onToggleExpanded={toggleExpandedViewProjectId}
+                />
                 <TagCloud
                   tags={workspace.tags}
                   selectedTagIds={viewDraft.filters.tag_ids}
