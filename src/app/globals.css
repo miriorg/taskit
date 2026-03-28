@@ -81,6 +81,30 @@ select {
   background: rgba(248, 251, 253, 0.96);
 }
 
+.status-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+
+.status-banner--pending {
+  border: 1px solid rgba(38, 75, 104, 0.2);
+  background: rgba(216, 231, 241, 0.92);
+  color: #173049;
+}
+
+.status-banner__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(23, 48, 73, 0.2);
+  border-top-color: #173049;
+  border-radius: 999px;
+  animation: spin 0.8s linear infinite;
+}
+
 .stack {
   display: grid;
   gap: 8px;
@@ -765,9 +789,20 @@ button {
   color: #fff9f3;
 }
 
+.button--busy {
+  position: relative;
+  opacity: 0.8;
+}
+
 button:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 1100px) {
