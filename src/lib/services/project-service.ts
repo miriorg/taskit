@@ -4,7 +4,7 @@ import { ProjectRepository } from "@/lib/repositories/project-repository";
 import { TaskRepository } from "@/lib/repositories/task-repository";
 import { SYSTEM_PROJECT_IDS } from "@/lib/utils/system-projects";
 import { createProjectInputSchema, updateProjectInputSchema } from "@/lib/validators";
-import type { CreateProjectInput, Project, ProjectListResponse, UpdateProjectInput } from "@/types";
+import type { CreateProjectInput, Project, ProjectDeleteResponse, ProjectListResponse, ProjectMutationResponse, UpdateProjectInput } from "@/types";
 
 export function collectDescendantProjectIds(projects: Project[], rootProjectId: string): string[] {
   const childrenByParent = new Map<string, string[]>();
@@ -61,7 +61,7 @@ export class ProjectService {
     return master?.projects.find((project) => project.id === projectId) ?? null;
   }
 
-  async create(input: CreateProjectInput, expectedRevision?: string): Promise<Project> {
+  async create(input: CreateProjectInput, expectedRevision?: string): Promise<ProjectMutationResponse> {
     const payload = createProjectInputSchema.parse(input);
     const master = await this.projectRepository.getMaster();
 
@@ -98,11 +98,16 @@ export class ProjectService {
       projects: [...master.projects, project],
     };
 
-    await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
-    return project;
+    const savedMaster = await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
+    return {
+      project,
+      revisions: {
+        project: savedMaster.revision,
+      },
+    };
   }
 
-  async update(projectId: string, input: UpdateProjectInput, expectedRevision?: string): Promise<Project> {
+  async update(projectId: string, input: UpdateProjectInput, expectedRevision?: string): Promise<ProjectMutationResponse> {
     const payload = updateProjectInputSchema.parse(input);
     const master = await this.projectRepository.getMaster();
 
@@ -159,11 +164,16 @@ export class ProjectService {
       projects: master.projects.map((project) => (project.id === projectId ? updatedProject : project)),
     };
 
-    await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
-    return updatedProject;
+    const savedMaster = await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
+    return {
+      project: updatedProject,
+      revisions: {
+        project: savedMaster.revision,
+      },
+    };
   }
 
-  async delete(projectId: string, expectedRevision?: string): Promise<{ deletedProjectIds: string[] }> {
+  async delete(projectId: string, expectedRevision?: string): Promise<ProjectDeleteResponse> {
     if (SYSTEM_PROJECT_IDS.includes(projectId as (typeof SYSTEM_PROJECT_IDS)[number])) {
       throw new Error("System project cannot be deleted");
     }
@@ -185,11 +195,14 @@ export class ProjectService {
       projects: master.projects.filter((project) => !deletedProjectIds.includes(project.id)),
     };
 
-    await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
+    const savedMaster = await this.projectRepository.save(updatedMaster, expectedRevision ?? master.revision);
     await Promise.all(deletedProjectIds.map((id) => this.taskRepository.deleteByProjectId(id)));
 
     return {
       deletedProjectIds,
+      revisions: {
+        project: savedMaster.revision,
+      },
     };
   }
 }

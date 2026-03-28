@@ -4,7 +4,7 @@ import { ProjectRepository } from "@/lib/repositories/project-repository";
 import { TagRepository } from "@/lib/repositories/tag-repository";
 import { TaskRepository } from "@/lib/repositories/task-repository";
 import { createTagInputSchema, updateTagInputSchema } from "@/lib/validators";
-import type { CreateTagInput, Tag, TagListResponse, UpdateTagInput } from "@/types";
+import type { CreateTagInput, FileRevisionMap, Tag, TagDeleteResponse, TagListResponse, TagMutationResponse, UpdateTagInput } from "@/types";
 
 function normalizeTagName(name: string) {
   return name.trim().replace(/^[#＃]+/, "").trim().toLowerCase();
@@ -35,7 +35,7 @@ export class TagService {
     return master?.tags.find((tag) => tag.id === tagId) ?? null;
   }
 
-  async create(input: CreateTagInput, expectedRevision?: string): Promise<Tag> {
+  async create(input: CreateTagInput, expectedRevision?: string): Promise<TagMutationResponse> {
     const payload = createTagInputSchema.parse(input);
     const master = await this.tagRepository.getMaster();
     const sanitizedName = sanitizeTagName(payload.name);
@@ -56,7 +56,7 @@ export class TagService {
       updated_at: now,
     };
 
-    await this.tagRepository.save(
+    const savedMaster = await this.tagRepository.save(
       {
         ...master,
         updated_at: now,
@@ -65,10 +65,15 @@ export class TagService {
       expectedRevision ?? master.revision,
     );
 
-    return tag;
+    return {
+      tag,
+      revisions: {
+        tag: savedMaster.revision,
+      },
+    };
   }
 
-  async update(tagId: string, input: UpdateTagInput, expectedRevision?: string): Promise<Tag> {
+  async update(tagId: string, input: UpdateTagInput, expectedRevision?: string): Promise<TagMutationResponse> {
     const payload = updateTagInputSchema.parse(input);
     const master = await this.tagRepository.getMaster();
 
@@ -96,7 +101,7 @@ export class TagService {
       updated_at: new Date().toISOString(),
     };
 
-    await this.tagRepository.save(
+    const savedMaster = await this.tagRepository.save(
       {
         ...master,
         updated_at: updated.updated_at,
@@ -105,10 +110,15 @@ export class TagService {
       expectedRevision ?? master.revision,
     );
 
-    return updated;
+    return {
+      tag: updated,
+      revisions: {
+        tag: savedMaster.revision,
+      },
+    };
   }
 
-  async delete(tagId: string, expectedRevision?: string): Promise<void> {
+  async delete(tagId: string, expectedRevision?: string): Promise<TagDeleteResponse> {
     const [master, projectMaster] = await Promise.all([
       this.tagRepository.getMaster(),
       this.projectRepository.getMaster(),
@@ -122,7 +132,7 @@ export class TagService {
       throw new Error("Tag not found");
     }
 
-    await this.tagRepository.save(
+    const savedTagMaster = await this.tagRepository.save(
       {
         ...master,
         updated_at: new Date().toISOString(),
@@ -130,6 +140,10 @@ export class TagService {
       },
       expectedRevision ?? master.revision,
     );
+
+    const revisions: FileRevisionMap = {
+      tag: savedTagMaster.revision,
+    };
 
     const projectIds = projectMaster?.projects.map((project) => project.id) ?? [];
 
@@ -141,7 +155,7 @@ export class TagService {
         continue;
       }
 
-      await this.taskRepository.save(
+      const savedTaskFile = await this.taskRepository.save(
         {
           ...taskFile,
           updated_at: new Date().toISOString(),
@@ -152,6 +166,13 @@ export class TagService {
         },
         taskFile.revision,
       );
+
+      revisions[`task:${projectId}`] = savedTaskFile.revision;
     }
+
+    return {
+      deletedTagId: tagId,
+      revisions,
+    };
   }
 }

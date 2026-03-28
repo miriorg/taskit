@@ -80,7 +80,7 @@ describe("TagService.create", () => {
       }) as never,
     );
 
-    await expect(service.create({ name: "#append" })).resolves.toMatchObject({ name: "append" });
+    await expect(service.create({ name: "#append" })).resolves.toMatchObject({ tag: { name: "append" } });
   });
 
   it("treats hashed and unhashed names as duplicates", async () => {
@@ -145,7 +145,7 @@ describe("TagService.update", () => {
       }) as never,
     );
 
-    await expect(service.update("tag-ios", { name: "#append" })).resolves.toMatchObject({ name: "append" });
+    await expect(service.update("tag-ios", { name: "#append" })).resolves.toMatchObject({ tag: { name: "append" } });
   });
 });
 
@@ -284,7 +284,7 @@ describe("TaskService.update", () => {
 
     const updated = await service.update("task-1", { status: "done" });
 
-    expect(updated.status).toBe("done");
-    expect(updated.project_id).toBe(DONE_PROJECT_ID);
+    expect(updated.task.status).toBe("done");
+    expect(updated.task.project_id).toBe(DONE_PROJECT_ID);
   });
 });

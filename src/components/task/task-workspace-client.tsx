@@ -2,7 +2,7 @@
 
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { TagCloud } from "@/components/tag";
@@ -11,14 +11,23 @@ import { DONE_PROJECT_ID, INBOX_PROJECT_ID } from "@/lib/utils/system-projects";
 import type {
   FileRevisionMap,
   Project,
+  ProjectDeleteResponse,
+  ProjectMutationResponse,
   ProjectListResponse,
   Tag,
+  TagDeleteResponse,
+  TagMutationResponse,
   TagListResponse,
   Task,
+  TaskDeleteResponse,
   TaskListResponse,
   TaskListSortKey,
+  TaskListItemDto,
+  TaskMutationResponse,
   View,
+  ViewDeleteResponse,
   ViewListResponse,
+  ViewMutationResponse,
   ViewSort,
 } from "@/types";
 
@@ -295,6 +304,68 @@ function formatProjectLabel(projects: Project[], projectId: string): string {
   return `${"  ".repeat(target.depth)}${target.name}`;
 }
 
+function buildProjectPathFromProjects(projectId: string, projects: Project[]): string {
+  const names: string[] = [];
+  const projectMap = new Map(projects.map((project) => [project.id, project]));
+  const visited = new Set<string>();
+  let currentId: string | null = projectId;
+
+  while (currentId) {
+    if (visited.has(currentId)) {
+      break;
+    }
+
+    visited.add(currentId);
+    const project = projectMap.get(currentId);
+
+    if (!project) {
+      names.unshift(currentId);
+      break;
+    }
+
+    names.unshift(project.name);
+    currentId = project.parent_id;
+  }
+
+  return names.join("/");
+}
+
+function toTaskListItemDto(task: Task, projects: Project[], tags: Tag[]): TaskListItemDto {
+  const project = projects.find((candidate) => candidate.id === task.project_id);
+  const selectedTags = task.tag_ids
+    .map((tagId) => tags.find((tag) => tag.id === tagId))
+    .filter((tag): tag is Tag => Boolean(tag))
+    .map((tag) => ({ id: tag.id, name: tag.name }));
+
+  return {
+    id: task.id,
+    title: task.title,
+    dueDate: task.due_date,
+    priority: task.priority,
+    createdAt: task.created_at,
+    projectPath: buildProjectPathFromProjects(task.project_id, projects),
+    status: task.status,
+    project: project ?? {
+      id: task.project_id,
+      name: task.project_id,
+      color: "#808080",
+    },
+    tags: selectedTags,
+  };
+}
+
+function refreshTaskListItemMetadata(items: TaskListItemDto[], projects: Project[], tags: Tag[]): TaskListItemDto[] {
+  const projectMap = new Map(projects.map((project) => [project.id, project]));
+  const tagMap = new Map(tags.map((tag) => [tag.id, tag]));
+
+  return items.map((item) => ({
+    ...item,
+    projectPath: buildProjectPathFromProjects(item.project.id, projects),
+    project: projectMap.get(item.project.id) ?? item.project,
+    tags: item.tags.map((tag) => tagMap.get(tag.id) ?? tag),
+  }));
+}
+
 function buildInitialExpandedProjectIds(projects: Project[], selectedProjectIds: string[]): string[] {
   const expanded = new Set<string>();
   const parentById = new Map(projects.map((project) => [project.id, project.parent_id]));
@@ -541,12 +612,13 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(true);
   const [includeChildProjects, setIncludeChildProjects] = useState(Boolean(projectId));
   const [message, setMessage] = useState<UiMessage | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [pendingActions, setPendingActions] = useState<Record<string, string>>({});
   const [shortcutPrefix, setShortcutPrefix] = useState<string | null>(null);
   const [expandedViewProjectIds, setExpandedViewProjectIds] = useState<string[]>([]);
   const createTaskInputRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const inlineTagSourceRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const pendingActionKeysRef = useRef(new Set<string>());
 
   const withExpectedRevision = (revisionKey: keyof FileRevisionMap | `task:${string}` | undefined, init?: RequestInit): RequestInit => {
     const headers = new Headers(init?.headers);
@@ -683,22 +755,59 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [inlineTagPicker]);
 
-  const run = (action: () => Promise<void>, entityType?: EntityType) => {
-    startTransition(() => {
-      void action().catch((error: unknown) => {
-        setMessage(toUiMessage(error, entityType));
+  const isActionPending = (key: string) => key in pendingActions;
+
+  const executeAction = async <T,>(
+    key: string,
+    label: string,
+    action: () => Promise<T>,
+    entityType?: EntityType,
+  ): Promise<T | null> => {
+    if (pendingActionKeysRef.current.has(key)) {
+      return null;
+    }
+
+    pendingActionKeysRef.current.add(key);
+    setPendingActions((current) => ({ ...current, [key]: label }));
+
+    try {
+      return await action();
+    } catch (error) {
+      setMessage(toUiMessage(error, entityType));
+      return null;
+    } finally {
+      pendingActionKeysRef.current.delete(key);
+      setPendingActions((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
       });
-    });
+    }
+  };
+
+  const runAction = (key: string, label: string, action: () => Promise<void>, entityType?: EntityType) => {
+    void executeAction(key, label, action, entityType);
   };
 
   const createInlineTag = async (name: string) => {
-    const createdTag = await readJson<Tag>("/api/tags", {
-      ...withJsonRevision("tag", { method: "POST" }),
-      body: JSON.stringify({ name }),
-    });
-    await refresh();
-    setMessage({ text: `Tag #${createdTag.name} created` });
-    return createdTag;
+    const response = await executeAction(
+      "tag:create:inline",
+      "Creating tag...",
+      () =>
+        readJson<TagMutationResponse>("/api/tags", {
+          ...withJsonRevision("tag", { method: "POST" }),
+          body: JSON.stringify({ name }),
+        }),
+      "tag",
+    );
+
+    if (!response) {
+      throw new Error("Tag creation is already in progress");
+    }
+
+    applyTagMutationToWorkspace(response.tag, response.revisions);
+    setMessage({ text: `Tag #${response.tag.name} created` });
+    return response.tag;
   };
 
   const setTagIdsForTarget = (target: InlineTagPickerState["target"], tagIds: string[]) => {
@@ -712,6 +821,256 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
   const currentInlineTagIds =
     inlineTagPicker?.target === "edit" ? selectedTask?.tag_ids ?? [] : taskTagIds;
+
+  const mergeRevisions = (
+    currentRevisions: FileRevisionMap,
+    incoming: FileRevisionMap,
+    options?: { removeKeys?: Array<keyof FileRevisionMap | `task:${string}`> },
+  ): FileRevisionMap => {
+    const next = { ...currentRevisions, ...incoming };
+
+    options?.removeKeys?.forEach((key) => {
+      delete next[key];
+    });
+
+    return next;
+  };
+
+  const buildTaskListState = (items: TaskListItemDto[], revisions: FileRevisionMap) => {
+    const sortedItems = sortTaskListItems(items, taskListSort);
+
+    return {
+      items: sortedItems,
+      todoItems: sortedItems.filter((item) => item.status !== "done"),
+      completedItems: sortedItems.filter((item) => item.status === "done"),
+      revisions,
+    };
+  };
+
+  const matchesCurrentTaskContext = (task: Task, projects: Project[], currentView: View | null): boolean => {
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+
+    if (normalizedSearchQuery && !task.title.toLowerCase().includes(normalizedSearchQuery)) {
+      return false;
+    }
+
+    if (viewId && currentView) {
+      const query = currentView.filters.query?.trim().toLowerCase();
+
+      if (query && !task.title.toLowerCase().includes(query)) {
+        return false;
+      }
+
+      if (currentView.filters.project_ids.length > 0) {
+        const allowedProjectIds = currentView.filters.include_project_descendants
+          ? new Set(currentView.filters.project_ids.flatMap((id) => collectDescendantIds(projects, id)))
+          : new Set(currentView.filters.project_ids);
+
+        if (!allowedProjectIds.has(task.project_id)) {
+          return false;
+        }
+      }
+
+      if (!currentView.filters.tag_ids.every((tagId) => task.tag_ids.includes(tagId))) {
+        return false;
+      }
+
+      if (!currentView.display_options.show_completed && task.status === "done") {
+        return false;
+      }
+
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const startOfTodayIso = startOfToday.toISOString();
+
+      if (currentView.filters.due === "today") {
+        return Boolean(task.due_date && task.due_date.slice(0, 10) === startOfTodayIso.slice(0, 10));
+      }
+
+      if (currentView.filters.due === "overdue") {
+        return Boolean(task.due_date && task.due_date < startOfTodayIso);
+      }
+
+      if (currentView.filters.due === "none") {
+        return task.due_date === null;
+      }
+
+      return true;
+    }
+
+    const resolvedProjectId = projectId ?? INBOX_PROJECT_ID;
+
+    if (projectId) {
+      if (includeChildProjects) {
+        return collectDescendantIds(projects, projectId).includes(task.project_id);
+      }
+
+      return task.project_id === projectId;
+    }
+
+    return task.project_id === resolvedProjectId;
+  };
+
+  const applyTaskMutationToWorkspace = (task: Task, revisions: FileRevisionMap) => {
+    setWorkspace((current) => {
+      const nextItems = current.tasks.items.filter((item) => item.id !== task.id);
+
+      if (matchesCurrentTaskContext(task, current.projects, current.currentView)) {
+        nextItems.push(toTaskListItemDto(task, current.projects, current.tags));
+      }
+
+      const nextRevisions = mergeRevisions(current.revisions, revisions);
+
+      return {
+        ...current,
+        revisions: nextRevisions,
+        tasks: buildTaskListState(nextItems, mergeRevisions(current.tasks.revisions, revisions)),
+      };
+    });
+  };
+
+  const applyTaskDeletionToWorkspace = (taskId: string, revisions: FileRevisionMap) => {
+    setWorkspace((current) => {
+      const nextItems = current.tasks.items.filter((item) => item.id !== taskId);
+      const nextRevisions = mergeRevisions(current.revisions, revisions);
+
+      return {
+        ...current,
+        revisions: nextRevisions,
+        tasks: buildTaskListState(nextItems, mergeRevisions(current.tasks.revisions, revisions)),
+      };
+    });
+  };
+
+  const applyProjectMutationToWorkspace = (project: Project, revisions: FileRevisionMap) => {
+    setWorkspace((current) => {
+      const nextProjects = current.projects.some((candidate) => candidate.id === project.id)
+        ? current.projects.map((candidate) => (candidate.id === project.id ? project : candidate))
+        : [...current.projects, project];
+      const nextItems = refreshTaskListItemMetadata(current.tasks.items, nextProjects, current.tags);
+      const nextRevisions = mergeRevisions(current.revisions, revisions);
+
+      return {
+        ...current,
+        projects: nextProjects,
+        revisions: nextRevisions,
+        tasks: buildTaskListState(nextItems, mergeRevisions(current.tasks.revisions, revisions)),
+      };
+    });
+  };
+
+  const applyProjectDeletionToWorkspace = (deletedProjectIds: string[], revisions: FileRevisionMap) => {
+    setSelectedTask((current) => (current && deletedProjectIds.includes(current.project_id) ? null : current));
+    setViewDraft((current) => ({
+      ...current,
+      filters: {
+        ...current.filters,
+        project_ids: current.filters.project_ids.filter((projectId) => !deletedProjectIds.includes(projectId)),
+      },
+    }));
+    setWorkspace((current) => {
+      const nextProjects = current.projects.filter((project) => !deletedProjectIds.includes(project.id));
+      const nextItems = current.tasks.items.filter((item) => !deletedProjectIds.includes(item.project.id));
+      const removeKeys = deletedProjectIds.map((id) => `task:${id}` as const);
+      const nextRevisions = mergeRevisions(current.revisions, revisions, { removeKeys });
+
+      return {
+        ...current,
+        projects: nextProjects,
+        revisions: nextRevisions,
+        tasks: buildTaskListState(nextItems, mergeRevisions(current.tasks.revisions, revisions, { removeKeys })),
+      };
+    });
+  };
+
+  const applyTagMutationToWorkspace = (tag: Tag, revisions: FileRevisionMap) => {
+    setWorkspace((current) => {
+      const nextTags = current.tags.some((candidate) => candidate.id === tag.id)
+        ? current.tags.map((candidate) => (candidate.id === tag.id ? tag : candidate))
+        : [...current.tags, tag];
+      const nextItems = refreshTaskListItemMetadata(current.tasks.items, current.projects, nextTags);
+      const nextCurrentView = current.currentView
+        ? {
+            ...current.currentView,
+            filters: {
+              ...current.currentView.filters,
+              tag_ids: current.currentView.filters.tag_ids.filter((tagId) => nextTags.some((candidate) => candidate.id === tagId)),
+            },
+          }
+        : null;
+      const nextRevisions = mergeRevisions(current.revisions, revisions);
+
+      return {
+        ...current,
+        tags: nextTags,
+        currentView: nextCurrentView,
+        revisions: nextRevisions,
+        tasks: buildTaskListState(nextItems, mergeRevisions(current.tasks.revisions, revisions)),
+      };
+    });
+  };
+
+  const applyTagDeletionToWorkspace = (deletedTagId: string, revisions: FileRevisionMap) => {
+    setTaskTagIds((current) => current.filter((tagId) => tagId !== deletedTagId));
+    setSelectedTask((current) => (current ? { ...current, tag_ids: current.tag_ids.filter((tagId) => tagId !== deletedTagId) } : current));
+    setViewDraft((current) => ({
+      ...current,
+      filters: {
+        ...current.filters,
+        tag_ids: current.filters.tag_ids.filter((tagId) => tagId !== deletedTagId),
+      },
+    }));
+    setWorkspace((current) => {
+      const nextTags = current.tags.filter((tag) => tag.id !== deletedTagId);
+      const nextItems = current.tasks.items.map((item) => ({
+        ...item,
+        tags: item.tags.filter((tag) => tag.id !== deletedTagId),
+      }));
+      const nextCurrentView = current.currentView
+        ? {
+            ...current.currentView,
+            filters: {
+              ...current.currentView.filters,
+              tag_ids: current.currentView.filters.tag_ids.filter((tagId) => tagId !== deletedTagId),
+            },
+          }
+        : null;
+      const nextRevisions = mergeRevisions(current.revisions, revisions);
+
+      return {
+        ...current,
+        tags: nextTags,
+        currentView: nextCurrentView,
+        revisions: nextRevisions,
+        tasks: buildTaskListState(nextItems, mergeRevisions(current.tasks.revisions, revisions)),
+      };
+    });
+  };
+
+  const applyViewMutationToWorkspace = (view: View, revisions: FileRevisionMap) => {
+    setWorkspace((current) => {
+      const nextViews = current.views.some((candidate) => candidate.id === view.id)
+        ? current.views.map((candidate) => (candidate.id === view.id ? view : candidate))
+        : [...current.views, view];
+      const nextRevisions = mergeRevisions(current.revisions, revisions);
+
+      return {
+        ...current,
+        views: nextViews,
+        currentView: current.currentView?.id === view.id ? view : current.currentView,
+        revisions: nextRevisions,
+      };
+    });
+  };
+
+  const applyViewDeletionToWorkspace = (deletedViewId: string, revisions: FileRevisionMap) => {
+    setWorkspace((current) => ({
+      ...current,
+      views: current.views.filter((view) => view.id !== deletedViewId),
+      currentView: current.currentView?.id === deletedViewId ? null : current.currentView,
+      revisions: mergeRevisions(current.revisions, revisions),
+    }));
+  };
 
   const renderTagSelectionSummary = (tagIds: string[], target: InlineTagPickerState["target"]) => {
     const selectedTags = tagIds
@@ -849,7 +1208,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   };
 
   const openTaskEditor = (taskId: string) => {
-    run(async () => {
+    runAction(`task:open:${taskId}`, "Loading task...", async () => {
       const task = await readJson<Task>(`/api/tasks/${taskId}`);
       setSelectedTask(task);
       setActiveTaskId(taskId);
@@ -858,14 +1217,14 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   };
 
   const toggleTaskStatus = (task: TaskListResponse["items"][number]) => {
-    run(async () => {
-      await readJson(`/api/tasks/${task.id}`, {
+    runAction(`task:toggle:${task.id}`, task.status === "done" ? "Reopening task..." : "Completing task...", async () => {
+      const response = await readJson<TaskMutationResponse>(`/api/tasks/${task.id}`, {
         ...withJsonRevision(`task:${task.project.id}`, { method: "PATCH" }),
         body: JSON.stringify({
           status: task.status === "done" ? "todo" : "done",
         }),
       });
-      await refresh();
+      applyTaskMutationToWorkspace(response.task, response.revisions);
       setMessage({ text: task.status === "done" ? "Task reopened" : "Task updated" });
     }, "task");
   };
@@ -904,6 +1263,17 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const isProjectOrderActive = taskListSort.active_key === "project";
   const visibleTaskCount = sortedVisibleTasks.length;
   const completedTaskCount = workspace.tasks.completedItems.length;
+  const pendingStatusText = Object.values(pendingActions)[0] ?? null;
+  const isProjectCreatePending = isActionPending("project:create");
+  const isTagCreatePending = isActionPending("tag:create");
+  const isViewCreatePending = isActionPending("view:create");
+  const isProjectUpdatePending = projectId ? isActionPending(`project:update:${projectId}`) : false;
+  const isProjectDeletePending = projectId ? isActionPending(`project:delete:${projectId}`) : false;
+  const isSubprojectCreatePending = projectId ? isActionPending(`project:create-child:${projectId}`) : false;
+  const isTaskCreatePending = isActionPending("task:create");
+  const isSelectedTaskUpdatePending = selectedTask ? isActionPending(`task:update:${selectedTask.id}`) : false;
+  const isViewUpdatePending = workspace.currentView ? isActionPending(`view:update:${workspace.currentView.id}`) : false;
+  const isViewDeletePending = workspace.currentView ? isActionPending(`view:delete:${workspace.currentView.id}`) : false;
 
   useEffect(() => {
     if (sortedVisibleTasks.length === 0) {
@@ -1009,6 +1379,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     const dueLabel = formatTaskDueLabel(task.dueDate);
     const tagSummary = task.tags.slice(0, 3);
     const remainingTagCount = task.tags.length - tagSummary.length;
+    const isTaskTogglePending = isActionPending(`task:toggle:${task.id}`);
+    const isTaskDeletePending = isActionPending(`task:delete:${task.id}`);
+    const isTaskOpenPending = isActionPending(`task:open:${task.id}`);
 
     return (
       <li
@@ -1026,6 +1399,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           <input
             checked={task.status === "done"}
             className="task-checkbox"
+            disabled={isTaskTogglePending}
             type="checkbox"
             onChange={() => toggleTaskStatus(task)}
           />
@@ -1060,7 +1434,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         <div className="task-actions">
           <button
             aria-label="Edit task"
-            className="button-secondary task-icon-button"
+            className={`button-secondary task-icon-button${isTaskOpenPending ? " button--busy" : ""}`}
+            disabled={isTaskOpenPending}
             type="button"
             title="Edit"
             onClick={(event) => {
@@ -1072,15 +1447,19 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           </button>
           <button
             aria-label="Delete task"
-            className="button-secondary task-icon-button task-icon-button--danger"
+            className={`button-secondary task-icon-button task-icon-button--danger${isTaskDeletePending ? " button--busy" : ""}`}
+            disabled={isTaskDeletePending}
             type="button"
             title="Delete"
             onClick={(event) => {
               event.stopPropagation();
-              run(async () => {
-                await readJson(`/api/tasks/${task.id}`, withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }));
+              runAction(`task:delete:${task.id}`, "Deleting task...", async () => {
+                const response = await readJson<TaskDeleteResponse>(
+                  `/api/tasks/${task.id}`,
+                  withExpectedRevision(`task:${task.project.id}`, { method: "DELETE" }),
+                );
                 setSelectedTask((current) => (current?.id === task.id ? null : current));
-                await refresh();
+                applyTaskDeletionToWorkspace(response.deletedTaskId, response.revisions);
                 setMessage({ text: "Task deleted" });
               }, "task");
             }}
@@ -1150,8 +1529,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             className="stack"
             onSubmit={(event) => {
               event.preventDefault();
-              run(async () => {
-                await readJson("/api/projects", {
+              runAction("project:create", "Creating project...", async () => {
+                const response = await readJson<ProjectMutationResponse>("/api/projects", {
                   ...withJsonRevision("project", { method: "POST" }),
                   body: JSON.stringify({
                     name: projectName,
@@ -1159,7 +1538,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   }),
                 });
                 setProjectName("");
-                await refresh();
+                applyProjectMutationToWorkspace(response.project, response.revisions);
                 setMessage({ text: "Project created" });
               }, "project");
             }}
@@ -1170,8 +1549,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               <img alt="" aria-hidden="true" className="task-icon" src="/icons/palette-monochrome.svg" />
               <input className="color-picker-button__input" value={projectColor} onChange={(event) => setProjectColor(event.target.value)} type="color" />
             </label>
-            <button disabled={isPending} type="submit">
-              Add project
+            <button className={isProjectCreatePending ? "button--busy" : undefined} disabled={isProjectCreatePending} type="submit">
+              {isProjectCreatePending ? "Adding..." : "Add project"}
             </button>
           </form>
         </div>
@@ -1184,13 +1563,14 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 <span className="chip__label">{tag.name}</span>
                 <button
                   aria-label={`Delete tag ${tag.name}`}
-                  className="chip__icon-button"
+                  className={`chip__icon-button${isActionPending(`tag:delete:${tag.id}`) ? " button--busy" : ""}`}
+                  disabled={isActionPending(`tag:delete:${tag.id}`)}
                   title="Delete"
                   type="button"
                   onClick={() =>
-                    run(async () => {
-                      await readJson(`/api/tags/${tag.id}`, withExpectedRevision("tag", { method: "DELETE" }));
-                      await refresh();
+                    runAction(`tag:delete:${tag.id}`, "Deleting tag...", async () => {
+                      const response = await readJson<TagDeleteResponse>(`/api/tags/${tag.id}`, withExpectedRevision("tag", { method: "DELETE" }));
+                      applyTagDeletionToWorkspace(response.deletedTagId, response.revisions);
                       setMessage({ text: "Tag deleted" });
                     }, "tag")
                   }
@@ -1204,20 +1584,20 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             className="stack"
             onSubmit={(event) => {
               event.preventDefault();
-              run(async () => {
-                await readJson("/api/tags", {
+              runAction("tag:create", "Creating tag...", async () => {
+                const response = await readJson<TagMutationResponse>("/api/tags", {
                   ...withJsonRevision("tag", { method: "POST" }),
                   body: JSON.stringify({ name: tagName }),
                 });
                 setTagName("");
-                await refresh();
+                applyTagMutationToWorkspace(response.tag, response.revisions);
                 setMessage({ text: "Tag created" });
               }, "tag");
             }}
           >
             <input required value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="New tag" />
-            <button disabled={isPending} type="submit">
-              Add tag
+            <button className={isTagCreatePending ? "button--busy" : undefined} disabled={isTagCreatePending} type="submit">
+              {isTagCreatePending ? "Adding..." : "Add tag"}
             </button>
           </form>
         </div>
@@ -1235,8 +1615,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             className="stack"
             onSubmit={(event) => {
               event.preventDefault();
-              run(async () => {
-                await readJson("/api/views", {
+              runAction("view:create", "Creating view...", async () => {
+                const response = await readJson<ViewMutationResponse>("/api/views", {
                   ...withJsonRevision("view", { method: "POST" }),
                   body: JSON.stringify({
                     name: viewDraft.name,
@@ -1249,7 +1629,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   }),
                 });
                 setViewDraft(createDefaultViewDraft(projectId));
-                await refresh();
+                applyViewMutationToWorkspace(response.view, response.revisions);
                 setMessage({ text: "View created" });
               }, "view");
             }}
@@ -1343,14 +1723,20 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               }
               inputPlaceholder="Filter tags"
             />
-            <button disabled={isPending || !viewDraft.name.trim()} type="submit">
-              Add view
+            <button className={isViewCreatePending ? "button--busy" : undefined} disabled={isViewCreatePending || !viewDraft.name.trim()} type="submit">
+              {isViewCreatePending ? "Adding..." : "Add view"}
             </button>
           </form>
         </div>
       </aside>
 
       <main className="workspace__main">
+        {pendingStatusText ? (
+          <div className="status-banner status-banner--pending" role="status" aria-live="polite">
+            <span className="status-banner__spinner" aria-hidden="true" />
+            <span>{pendingStatusText}</span>
+          </div>
+        ) : null}
         <header className="panel">
           <h1>{viewId ? workspace.currentView?.name ?? "View" : projectId ? "Project" : "Inbox"}</h1>
           {projectId ? (
@@ -1364,8 +1750,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   className="inline-form"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    run(async () => {
-                      await readJson(`/api/projects/${projectId}`, {
+                    runAction(`project:update:${projectId}`, "Saving project...", async () => {
+                      const response = await readJson<ProjectMutationResponse>(`/api/projects/${projectId}`, {
                         ...withJsonRevision("project", { method: "PATCH" }),
                         body: JSON.stringify({
                           name: projectRename,
@@ -1373,7 +1759,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                           parent_id: parentProjectId || null,
                         }),
                       });
-                      await refresh();
+                      applyProjectMutationToWorkspace(response.project, response.revisions);
                       setMessage({ text: "Project updated" });
                     }, "project");
                   }}
@@ -1399,8 +1785,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   </select>
                   <button
                     aria-label="Save project"
-                    className="button-secondary task-icon-button"
-                    disabled={isPending || !projectRename.trim()}
+                    className={`button-secondary task-icon-button${isProjectUpdatePending ? " button--busy" : ""}`}
+                    disabled={isProjectUpdatePending || !projectRename.trim()}
                     title="Save project"
                     type="submit"
                   >
@@ -1408,13 +1794,17 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   </button>
                   <button
                     aria-label="Delete project"
-                    className="button-secondary task-icon-button task-icon-button--danger"
-                    disabled={isPending}
+                    className={`button-secondary task-icon-button task-icon-button--danger${isProjectDeletePending ? " button--busy" : ""}`}
+                    disabled={isProjectDeletePending}
                     title="Delete project"
                     type="button"
                     onClick={() =>
-                      run(async () => {
-                        await readJson(`/api/projects/${projectId}`, withExpectedRevision("project", { method: "DELETE" }));
+                      runAction(`project:delete:${projectId}`, "Deleting project...", async () => {
+                        const response = await readJson<ProjectDeleteResponse>(
+                          `/api/projects/${projectId}`,
+                          withExpectedRevision("project", { method: "DELETE" }),
+                        );
+                        applyProjectDeletionToWorkspace(response.deletedProjectIds, response.revisions);
                         window.location.href = "/inbox";
                       }, "project")
                     }
@@ -1426,8 +1816,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   className="inline-form"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    run(async () => {
-                      await readJson("/api/projects", {
+                    runAction(`project:create-child:${projectId}`, "Creating subproject...", async () => {
+                      const response = await readJson<ProjectMutationResponse>("/api/projects", {
                         ...withJsonRevision("project", { method: "POST" }),
                         body: JSON.stringify({
                           name: subprojectName,
@@ -1436,7 +1826,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                         }),
                       });
                       setSubprojectName("");
-                      await refresh();
+                      applyProjectMutationToWorkspace(response.project, response.revisions);
                       setMessage({ text: "Subproject created" });
                     }, "project");
                   }}
@@ -1446,8 +1836,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     onChange={(event) => setSubprojectName(event.target.value)}
                     placeholder="New subproject"
                   />
-                  <button disabled={isPending || !subprojectName.trim()} type="submit">
-                    Add subproject
+                  <button className={isSubprojectCreatePending ? "button--busy" : undefined} disabled={isSubprojectCreatePending || !subprojectName.trim()} type="submit">
+                    {isSubprojectCreatePending ? "Adding..." : "Add subproject"}
                   </button>
                 </form>
               </div>
@@ -1473,7 +1863,6 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             <button
               aria-label="Search tasks"
               className="button-secondary task-icon-button"
-              disabled={isPending}
               title="Search tasks"
               type="submit"
             >
@@ -1482,7 +1871,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             <button
               aria-label="Clear search"
               className="button-secondary task-icon-button"
-              disabled={isPending || (!searchDraft && !searchQuery)}
+              disabled={!searchDraft && !searchQuery}
               title="Clear search"
               type="button"
               onClick={() => {
@@ -1505,8 +1894,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               className="stack"
               onSubmit={(event) => {
                 event.preventDefault();
-                run(async () => {
-                  await readJson("/api/tasks", {
+                runAction("task:create", "Creating task...", async () => {
+                  const response = await readJson<TaskMutationResponse>("/api/tasks", {
                     ...withJsonRevision(`task:${projectId ?? INBOX_PROJECT_ID}`, { method: "POST" }),
                     body: JSON.stringify({
                       title: taskTitle,
@@ -1518,7 +1907,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     }),
                   });
                   resetCreateTaskForm();
-                  await refresh();
+                  applyTaskMutationToWorkspace(response.task, response.revisions);
                   setMessage({ text: "Task created" });
                 }, "task");
               }}
@@ -1550,8 +1939,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 </select>
               </div>
               {renderTagSelectionSummary(taskTagIds, "create")}
-              <button disabled={isPending || !taskTitle.trim()} type="submit">
-                Add task
+              <button className={isTaskCreatePending ? "button--busy" : undefined} disabled={isTaskCreatePending || !taskTitle.trim()} type="submit">
+                {isTaskCreatePending ? "Adding..." : "Add task"}
               </button>
             </form>
           ) : (
@@ -1635,7 +2024,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 className="button-secondary button-secondary--conflict"
                 type="button"
                 onClick={() =>
-                  run(async () => {
+                  runAction("workspace:reload", "Reloading latest data...", async () => {
                     await refresh();
                     setMessage({ text: "Reloaded latest data" });
                   })
@@ -1656,8 +2045,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               className="stack"
               onSubmit={(event) => {
                 event.preventDefault();
-                run(async () => {
-                  await readJson(`/api/tasks/${selectedTask.id}`, {
+                runAction(`task:update:${selectedTask.id}`, "Saving task...", async () => {
+                  const response = await readJson<TaskMutationResponse>(`/api/tasks/${selectedTask.id}`, {
                     ...withJsonRevision(`task:${selectedTask.project_id}`, { method: "PATCH" }),
                     body: JSON.stringify({
                       title: selectedTask.title,
@@ -1668,7 +2057,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                       project_id: selectedTask.project_id,
                     }),
                   });
-                  await refresh();
+                  applyTaskMutationToWorkspace(response.task, response.revisions);
+                  setSelectedTask(response.task);
                   setMessage({ text: "Task updated" });
                 }, "task");
               }}
@@ -1740,8 +2130,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 ))}
               </select>
               {renderTagSelectionSummary(selectedTask.tag_ids, "edit")}
-              <button disabled={isPending || !selectedTask.title.trim()} type="submit">
-                Save task
+              <button className={isSelectedTaskUpdatePending ? "button--busy" : undefined} disabled={isSelectedTaskUpdatePending || !selectedTask.title.trim()} type="submit">
+                {isSelectedTaskUpdatePending ? "Saving..." : "Save task"}
               </button>
             </form>
           ) : viewId ? (
@@ -1750,8 +2140,8 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 className="stack"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  run(async () => {
-                    await readJson(`/api/views/${workspace.currentView?.id}`, {
+                  runAction(`view:update:${workspace.currentView?.id}`, "Saving view...", async () => {
+                    const response = await readJson<ViewMutationResponse>(`/api/views/${workspace.currentView?.id}`, {
                       ...withJsonRevision("view", { method: "PATCH" }),
                       body: JSON.stringify({
                         name: viewDraft.name,
@@ -1763,7 +2153,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                         display_options: viewDraft.display_options,
                       }),
                     });
-                    await refresh();
+                    applyViewMutationToWorkspace(response.view, response.revisions);
                     setMessage({ text: "View updated" });
                   }, "view");
                 }}
@@ -1857,21 +2247,25 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   inputPlaceholder="Filter tags"
                 />
                 <div className="inline-form">
-                  <button disabled={isPending || !viewDraft.name.trim()} type="submit">
-                    Save view
+                  <button className={isViewUpdatePending ? "button--busy" : undefined} disabled={isViewUpdatePending || !viewDraft.name.trim()} type="submit">
+                    {isViewUpdatePending ? "Saving..." : "Save view"}
                   </button>
                   <button
-                    className="button-secondary"
-                    disabled={isPending}
+                    className={`button-secondary${isViewDeletePending ? " button--busy" : ""}`}
+                    disabled={isViewDeletePending}
                     type="button"
                     onClick={() =>
-                      run(async () => {
-                        await readJson(`/api/views/${workspace.currentView?.id}`, withExpectedRevision("view", { method: "DELETE" }));
+                      runAction(`view:delete:${workspace.currentView?.id}`, "Deleting view...", async () => {
+                        const response = await readJson<ViewDeleteResponse>(
+                          `/api/views/${workspace.currentView?.id}`,
+                          withExpectedRevision("view", { method: "DELETE" }),
+                        );
+                        applyViewDeletionToWorkspace(response.deletedViewId, response.revisions);
                         window.location.href = "/inbox";
                       }, "view")
                     }
                   >
-                    Delete view
+                    {isViewDeletePending ? "Deleting..." : "Delete view"}
                   </button>
                 </div>
               </form>
