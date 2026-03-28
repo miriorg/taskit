@@ -38,8 +38,7 @@ export async function DELETE(request: Request, { params }: RouteContext) {
   try {
     const taskService = new TaskService();
     const { taskId } = await params;
-    await taskService.delete(taskId, { expectedRevision: getExpectedRevision(request) });
-    return new Response(null, { status: 204 });
+    return Response.json(await taskService.delete(taskId, { expectedRevision: getExpectedRevision(request) }));
   } catch (error) {
     return toErrorResponse(error);
   }

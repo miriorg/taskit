@@ -7,7 +7,18 @@ import { TagRepository } from "@/lib/repositories/tag-repository";
 import { collectDescendantProjectIds } from "@/lib/services/project-service";
 import { DONE_PROJECT_ID, INBOX_PROJECT_ID } from "@/lib/utils/system-projects";
 import { createTaskInputSchema, updateTaskInputSchema } from "@/lib/validators";
-import type { CreateTaskInput, Project, Task, TaskListItemDto, TaskListResponse, UpdateTaskInput, ViewSort } from "@/types";
+import type {
+  CreateTaskInput,
+  FileRevisionMap,
+  Project,
+  Task,
+  TaskDeleteResponse,
+  TaskListItemDto,
+  TaskListResponse,
+  TaskMutationResponse,
+  UpdateTaskInput,
+  ViewSort,
+} from "@/types";
 
 type TaskLocation = {
   task: Task;
@@ -173,7 +184,7 @@ export class TaskService {
     return location?.task ?? null;
   }
 
-  async create(input: CreateTaskInput, options?: TaskMutationOptions): Promise<Task> {
+  async create(input: CreateTaskInput, options?: TaskMutationOptions): Promise<TaskMutationResponse> {
     const payload = createTaskInputSchema.parse(input);
     const [projectMaster, tagMaster] = await Promise.all([
       this.projectRepository.getMaster(),
@@ -213,7 +224,7 @@ export class TaskService {
       completed_at: null,
     };
 
-    await this.taskRepository.save(
+    const savedTaskFile = await this.taskRepository.save(
       {
         ...taskFile,
         updated_at: now,
@@ -222,10 +233,15 @@ export class TaskService {
       options?.expectedRevision ?? taskFile.revision,
     );
 
-    return task;
+    return {
+      task,
+      revisions: {
+        [`task:${projectId}`]: savedTaskFile.revision,
+      },
+    };
   }
 
-  async update(taskId: string, input: UpdateTaskInput, options?: TaskMutationOptions): Promise<Task> {
+  async update(taskId: string, input: UpdateTaskInput, options?: TaskMutationOptions): Promise<TaskMutationResponse> {
     const payload = updateTaskInputSchema.parse(input);
     const location = await this.findTaskById(taskId);
 
@@ -279,7 +295,7 @@ export class TaskService {
     };
 
     if (destinationProjectId === currentTask.project_id) {
-      await this.taskRepository.save(
+      const savedTaskFile = await this.taskRepository.save(
         {
           ...sourceTaskFile,
           updated_at: now,
@@ -288,11 +304,16 @@ export class TaskService {
         options?.expectedRevision ?? sourceTaskFile.revision,
       );
 
-      return updatedTask;
+      return {
+        task: updatedTask,
+        revisions: {
+          [`task:${sourceTaskFile.project_id}`]: savedTaskFile.revision,
+        },
+      };
     }
 
     const destinationTaskFile = await this.taskRepository.getByProjectId(destinationProjectId);
-    await this.taskRepository.save(
+    const savedSourceTaskFile = await this.taskRepository.save(
       {
         ...sourceTaskFile,
         updated_at: now,
@@ -300,7 +321,7 @@ export class TaskService {
       },
       options?.expectedRevision ?? sourceTaskFile.revision,
     );
-    await this.taskRepository.save(
+    const savedDestinationTaskFile = await this.taskRepository.save(
       {
         ...destinationTaskFile,
         updated_at: now,
@@ -309,10 +330,19 @@ export class TaskService {
       destinationTaskFile.revision,
     );
 
-    return updatedTask;
+    const revisions: FileRevisionMap = {
+      [`task:${sourceTaskFile.project_id}`]: savedSourceTaskFile.revision,
+      [`task:${destinationProjectId}`]: savedDestinationTaskFile.revision,
+    };
+
+    return {
+      task: updatedTask,
+      previousProjectId: currentTask.project_id,
+      revisions,
+    };
   }
 
-  async delete(taskId: string, options?: TaskMutationOptions): Promise<void> {
+  async delete(taskId: string, options?: TaskMutationOptions): Promise<TaskDeleteResponse> {
     const location = await this.findTaskById(taskId);
 
     if (!location) {
@@ -320,7 +350,7 @@ export class TaskService {
     }
 
     const taskFile = await this.taskRepository.getByProjectId(location.task.project_id);
-    await this.taskRepository.save(
+    const savedTaskFile = await this.taskRepository.save(
       {
         ...taskFile,
         updated_at: new Date().toISOString(),
@@ -328,5 +358,13 @@ export class TaskService {
       },
       options?.expectedRevision ?? taskFile.revision,
     );
+
+    return {
+      deletedTaskId: taskId,
+      projectId: location.task.project_id,
+      revisions: {
+        [`task:${location.task.project_id}`]: savedTaskFile.revision,
+      },
+    };
   }
 }

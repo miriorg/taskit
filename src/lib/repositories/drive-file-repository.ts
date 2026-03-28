@@ -12,6 +12,8 @@ export type DriveFileRecord = {
   content: string;
 };
 
+type DriveFileMetadata = Omit<DriveFileRecord, "content">;
+
 export interface DriveFileStore {
   findByName(name: string): Promise<DriveFileRecord | null>;
   upsertJson(name: string, content: string, expectedRevision?: Revision): Promise<DriveFileRecord>;
@@ -102,26 +104,38 @@ export class DriveFileRepository implements DriveFileStore {
     return response.text();
   }
 
-  async findByName(name: string): Promise<DriveFileRecord | null> {
-    const files = await this.listByName(name);
-    const file = files[0];
-
-    if (!file) {
-      return null;
-    }
-
+  private toMetadata(file: NonNullable<GoogleDriveFileListResponse["files"]>[number]): DriveFileMetadata {
     return {
       id: file.id,
       name: file.name,
       mimeType: file.mimeType,
       modifiedTime: file.modifiedTime,
       revision: buildRevision(file),
-      content: await this.downloadContent(file.id),
+    };
+  }
+
+  private async findMetadataByName(name: string): Promise<DriveFileMetadata | null> {
+    const files = await this.listByName(name);
+    const file = files[0];
+
+    return file ? this.toMetadata(file) : null;
+  }
+
+  async findByName(name: string): Promise<DriveFileRecord | null> {
+    const metadata = await this.findMetadataByName(name);
+
+    if (!metadata) {
+      return null;
+    }
+
+    return {
+      ...metadata,
+      content: await this.downloadContent(metadata.id),
     };
   }
 
   async upsertJson(name: string, content: string, expectedRevision?: Revision): Promise<DriveFileRecord> {
-    const existing = await this.findByName(name);
+    const existing = await this.findMetadataByName(name);
 
     if (existing && expectedRevision && existing.revision !== expectedRevision) {
       throw new ConflictError(`The file ${name} was updated elsewhere. Reload and try again.`);
@@ -183,7 +197,7 @@ export class DriveFileRepository implements DriveFileStore {
   }
 
   async deleteByName(name: string): Promise<void> {
-    const existing = await this.findByName(name);
+    const existing = await this.findMetadataByName(name);
 
     if (!existing) {
       return;

@@ -4,7 +4,7 @@ import { migrateLegacyViewSort } from "@/lib/task-list-sort";
 import { createTaskListResponse, TaskService } from "@/lib/services/task-service";
 import { ViewRepository } from "@/lib/repositories/view-repository";
 import { createViewInputSchema, updateViewInputSchema } from "@/lib/validators";
-import type { CreateViewInput, TaskListResponse, UpdateViewInput, View, ViewListResponse } from "@/types";
+import type { CreateViewInput, TaskListResponse, UpdateViewInput, View, ViewDeleteResponse, ViewListResponse, ViewMutationResponse } from "@/types";
 
 export class ViewService {
   constructor(
@@ -26,7 +26,7 @@ export class ViewService {
     return master?.views.find((view) => view.id === viewId) ?? null;
   }
 
-  async create(input: CreateViewInput, expectedRevision?: string): Promise<View> {
+  async create(input: CreateViewInput, expectedRevision?: string): Promise<ViewMutationResponse> {
     const payload = createViewInputSchema.parse(input);
     const master = await this.viewRepository.getMaster();
 
@@ -45,7 +45,7 @@ export class ViewService {
       updated_at: now,
     };
 
-    await this.viewRepository.save(
+    const savedMaster = await this.viewRepository.save(
       {
         ...master,
         updated_at: now,
@@ -54,10 +54,15 @@ export class ViewService {
       expectedRevision ?? master.revision,
     );
 
-    return view;
+    return {
+      view,
+      revisions: {
+        view: savedMaster.revision,
+      },
+    };
   }
 
-  async update(viewId: string, input: UpdateViewInput, expectedRevision?: string): Promise<View> {
+  async update(viewId: string, input: UpdateViewInput, expectedRevision?: string): Promise<ViewMutationResponse> {
     const payload = updateViewInputSchema.parse(input);
     const master = await this.viewRepository.getMaster();
 
@@ -80,7 +85,7 @@ export class ViewService {
       updated_at: new Date().toISOString(),
     };
 
-    await this.viewRepository.save(
+    const savedMaster = await this.viewRepository.save(
       {
         ...master,
         updated_at: updated.updated_at,
@@ -89,10 +94,15 @@ export class ViewService {
       expectedRevision ?? master.revision,
     );
 
-    return updated;
+    return {
+      view: updated,
+      revisions: {
+        view: savedMaster.revision,
+      },
+    };
   }
 
-  async delete(viewId: string, expectedRevision?: string): Promise<void> {
+  async delete(viewId: string, expectedRevision?: string): Promise<ViewDeleteResponse> {
     const master = await this.viewRepository.getMaster();
 
     if (!master) {
@@ -103,7 +113,7 @@ export class ViewService {
       throw new Error("View not found");
     }
 
-    await this.viewRepository.save(
+    const savedMaster = await this.viewRepository.save(
       {
         ...master,
         updated_at: new Date().toISOString(),
@@ -111,6 +121,13 @@ export class ViewService {
       },
       expectedRevision ?? master.revision,
     );
+
+    return {
+      deletedViewId: viewId,
+      revisions: {
+        view: savedMaster.revision,
+      },
+    };
   }
 
   async query(viewId: string, options?: { query?: string }): Promise<TaskListResponse> {

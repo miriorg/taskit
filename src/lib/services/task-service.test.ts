@@ -298,9 +298,9 @@ describe("TaskService.update", () => {
 
     const updated = await service.update("task-done", { status: "todo" });
 
-    expect(updated.project_id).toBe(INBOX_PROJECT_ID);
-    expect(updated.status).toBe("todo");
-    expect(updated.completed_at).toBeNull();
+    expect(updated.task.project_id).toBe(INBOX_PROJECT_ID);
+    expect(updated.task.status).toBe("todo");
+    expect(updated.task.completed_at).toBeNull();
     expect((await taskRepository.getByProjectId(DONE_PROJECT_ID)).tasks).toHaveLength(0);
     expect((await taskRepository.getByProjectId(INBOX_PROJECT_ID)).tasks.map((task) => task.id)).toContain("task-done");
   });

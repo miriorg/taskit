@@ -54,3 +54,45 @@ export type ViewListResponse = {
   views: View[];
   revisions: FileRevisionMap;
 };
+
+export type TaskMutationResponse = {
+  task: Task;
+  revisions: FileRevisionMap;
+  previousProjectId?: string;
+};
+
+export type TaskDeleteResponse = {
+  deletedTaskId: string;
+  projectId: string;
+  revisions: FileRevisionMap;
+};
+
+export type ProjectMutationResponse = {
+  project: Project;
+  revisions: FileRevisionMap;
+};
+
+export type ProjectDeleteResponse = {
+  deletedProjectIds: string[];
+  revisions: FileRevisionMap;
+};
+
+export type TagMutationResponse = {
+  tag: Tag;
+  revisions: FileRevisionMap;
+};
+
+export type TagDeleteResponse = {
+  deletedTagId: string;
+  revisions: FileRevisionMap;
+};
+
+export type ViewMutationResponse = {
+  view: View;
+  revisions: FileRevisionMap;
+};
+
+export type ViewDeleteResponse = {
+  deletedViewId: string;
+  revisions: FileRevisionMap;
+};
