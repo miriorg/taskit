@@ -641,6 +641,12 @@ select {
   height: var(--icon-size-md);
 }
 
+.task-icon--wide {
+  width: 36px;
+  height: 24px;
+  object-fit: contain;
+}
+
 .color-picker-button {
   position: relative;
   display: inline-flex;

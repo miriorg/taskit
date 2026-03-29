@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" width="96" height="64" fill="none">
+  <title>Add Tags Icon</title>
+  <g stroke="#111111" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 10v14" />
+    <path d="M9 17h14" />
+    <path d="M49 18h18l12 12-22 22-18-18V18h10Z" />
+    <circle cx="52.5" cy="27.5" r="2" fill="#111111" stroke="none" />
+  </g>
+</svg>

@@ -1639,9 +1639,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               type="button"
               onClick={openProjectCreateDialog}
             >
-              <span className="task-icon-button__text" aria-hidden="true">
-                +
-              </span>
+              <img alt="" aria-hidden="true" className="task-icon task-icon--wide" src="/icons/add-projects.svg" />
             </button>
           </div>
           <nav className="list project-nav">
@@ -1715,7 +1713,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               type="button"
               onClick={openTagCreateDialog}
             >
-              <span aria-hidden="true" className="task-icon-button__text">+</span>
+              <img alt="" aria-hidden="true" className="task-icon task-icon--wide" src="/icons/add-tag.svg" />
             </button>
           </div>
           <ul className="chip-list">
@@ -1752,9 +1750,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               type="button"
               onClick={openViewCreateDialog}
             >
-              <span className="task-icon-button__text" aria-hidden="true">
-                +
-              </span>
+              <img alt="" aria-hidden="true" className="task-icon task-icon--wide" src="/icons/add-views.svg" />
             </button>
           </div>
           <ul className="list project-nav">
@@ -1987,8 +1983,14 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 </select>
               </div>
               {renderTagSelectionSummary(taskTagIds, "create")}
-              <button className={isTaskCreatePending ? "button--busy" : undefined} disabled={isTaskCreatePending || !taskTitle.trim()} type="submit">
-                {isTaskCreatePending ? "Adding..." : "Add task"}
+              <button
+                aria-label="Add task"
+                className={`button-secondary task-icon-button${isTaskCreatePending ? " button--busy" : ""}`}
+                disabled={isTaskCreatePending || !taskTitle.trim()}
+                title="Add task"
+                type="submit"
+              >
+                <img alt="" aria-hidden="true" className="task-icon task-icon--wide" src="/icons/add-tasks.svg" />
               </button>
             </form>
           ) : (
