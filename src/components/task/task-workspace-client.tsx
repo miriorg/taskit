@@ -107,6 +107,9 @@ const compactDateFormatter = new Intl.DateTimeFormat(undefined, {
   month: "short",
   day: "numeric",
 });
+
+const DEFAULT_PROJECT_COLOR = "#ffffff";
+
 function createDefaultViewDraft(projectId?: string, sort: ViewSort = DEFAULT_TASK_LIST_SORT): ViewDraft {
   return {
     name: "",
@@ -598,13 +601,13 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [taskPriority, setTaskPriority] = useState("");
   const [taskTagIds, setTaskTagIds] = useState<string[]>([]);
   const [projectName, setProjectName] = useState("");
-  const [projectColor, setProjectColor] = useState("#ff8080");
+  const [projectColor, setProjectColor] = useState(DEFAULT_PROJECT_COLOR);
   const [tagName, setTagName] = useState("");
   const [viewDraft, setViewDraft] = useState<ViewDraft>(() => createDefaultViewDraft(projectId));
   const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [projectRename, setProjectRename] = useState("");
-  const [projectEditColor, setProjectEditColor] = useState("#ff8080");
+  const [projectEditColor, setProjectEditColor] = useState(DEFAULT_PROJECT_COLOR);
   const [parentProjectId, setParentProjectId] = useState("");
   const [subprojectName, setSubprojectName] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -619,7 +622,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [isTagCreateDialogOpen, setIsTagCreateDialogOpen] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [projectDialogName, setProjectDialogName] = useState("");
-  const [projectDialogColor, setProjectDialogColor] = useState("#ff8080");
+  const [projectDialogColor, setProjectDialogColor] = useState(DEFAULT_PROJECT_COLOR);
   const [projectDialogParentId, setProjectDialogParentId] = useState("");
   const [isViewCreateDialogOpen, setIsViewCreateDialogOpen] = useState(false);
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
@@ -707,7 +710,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     if (projectId) {
       const currentProject = workspace.projects.find((project) => project.id === projectId);
       setProjectRename(currentProject?.name ?? "");
-      setProjectEditColor(currentProject?.color ?? "#ff8080");
+      setProjectEditColor(currentProject?.color ?? DEFAULT_PROJECT_COLOR);
       setParentProjectId(currentProject?.parent_id ?? "");
     }
   }, [projectId, workspace.projects]);
@@ -1323,7 +1326,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
   const openProjectCreateDialog = () => {
     setProjectName("");
-    setProjectColor("#ff8080");
+    setProjectColor(DEFAULT_PROJECT_COLOR);
     setIsProjectCreateDialogOpen(true);
   };
 
