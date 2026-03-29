@@ -39,6 +39,7 @@ export type Project = {
 export type Tag = {
   id: EntityId;
   name: string;
+  description: string;
   created_at: IsoDateString;
   updated_at: IsoDateString;
 };

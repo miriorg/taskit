@@ -14,6 +14,10 @@ function sanitizeTagName(name: string) {
   return name.trim().replace(/^[#＃]+/, "").trim();
 }
 
+function sanitizeTagDescription(description: string | undefined) {
+  return description?.trim() ?? "";
+}
+
 export class TagService {
   constructor(
     private readonly tagRepository: TagRepository = new TagRepository(),
@@ -52,6 +56,7 @@ export class TagService {
     const tag: Tag = {
       id: randomUUID(),
       name: sanitizedName,
+      description: sanitizeTagDescription(payload.description),
       created_at: now,
       updated_at: now,
     };
@@ -98,6 +103,7 @@ export class TagService {
       ...current,
       ...payload,
       ...(sanitizedRequestedName ? { name: sanitizedRequestedName } : {}),
+      ...(payload.description !== undefined ? { description: sanitizeTagDescription(payload.description) } : {}),
       updated_at: new Date().toISOString(),
     };
 

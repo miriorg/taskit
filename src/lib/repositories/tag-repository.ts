@@ -15,7 +15,26 @@ export class TagRepository {
       return null;
     }
 
-    const parsed = tagMasterFileSchema.parse(JSON.parse(record.content));
+    const raw = JSON.parse(record.content) as {
+      schema_version: number;
+      updated_at: string;
+      revision?: string;
+      tags?: Array<{ description?: unknown }>;
+    };
+    const parsed = tagMasterFileSchema.parse(raw);
+    const needsMigration =
+      Array.isArray(raw.tags) &&
+      raw.tags.some((tag, index) => parsed.tags[index] && parsed.tags[index].description !== (typeof tag?.description === "string" ? tag.description : ""));
+
+    if (needsMigration) {
+      return this.save(
+        {
+          ...parsed,
+          revision: record.revision,
+        },
+        record.revision,
+      );
+    }
 
     return {
       ...parsed,

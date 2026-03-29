@@ -37,6 +37,7 @@ export const projectSchema = z.object({
 export const tagSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1),
+  description: z.string().optional().default(""),
   created_at: isoDateStringSchema,
   updated_at: isoDateStringSchema,
 });

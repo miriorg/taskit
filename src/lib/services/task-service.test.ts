@@ -93,12 +93,14 @@ const tagMaster: TagMasterFile = {
     {
       id: "tag-work",
       name: "work",
+      description: "",
       created_at: "2026-03-22T00:00:00.000Z",
       updated_at: "2026-03-22T00:00:00.000Z",
     },
     {
       id: "tag-home",
       name: "home",
+      description: "",
       created_at: "2026-03-22T00:00:00.000Z",
       updated_at: "2026-03-22T00:00:00.000Z",
     },

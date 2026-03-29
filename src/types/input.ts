@@ -25,6 +25,7 @@ export type UpdateProjectInput = Partial<CreateProjectInput>;
 
 export type CreateTagInput = {
   name: string;
+  description?: string;
 };
 
 export type UpdateTagInput = Partial<CreateTagInput>;

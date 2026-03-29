@@ -61,6 +61,7 @@ describe("TagService.create", () => {
           {
             id: "tag-android",
             name: "Android",
+            description: "",
             created_at: "2026-03-22T00:00:00.000Z",
             updated_at: "2026-03-22T00:00:00.000Z",
           },
@@ -83,6 +84,18 @@ describe("TagService.create", () => {
     await expect(service.create({ name: "#append" })).resolves.toMatchObject({ tag: { name: "append" } });
   });
 
+  it("defaults tag description to an empty string", async () => {
+    const service = new TagService(
+      new TagRepositoryStub({
+        schema_version: 1,
+        updated_at: "2026-03-22T00:00:00.000Z",
+        tags: [],
+      }) as never,
+    );
+
+    await expect(service.create({ name: "append" })).resolves.toMatchObject({ tag: { description: "" } });
+  });
+
   it("treats hashed and unhashed names as duplicates", async () => {
     const service = new TagService(
       new TagRepositoryStub({
@@ -92,6 +105,7 @@ describe("TagService.create", () => {
           {
             id: "tag-append",
             name: "append",
+            description: "",
             created_at: "2026-03-22T00:00:00.000Z",
             updated_at: "2026-03-22T00:00:00.000Z",
           },
@@ -113,12 +127,14 @@ describe("TagService.update", () => {
           {
             id: "tag-android",
             name: "Android",
+            description: "",
             created_at: "2026-03-22T00:00:00.000Z",
             updated_at: "2026-03-22T00:00:00.000Z",
           },
           {
             id: "tag-ios",
             name: "iOS",
+            description: "",
             created_at: "2026-03-22T00:00:00.000Z",
             updated_at: "2026-03-22T00:00:00.000Z",
           },
@@ -138,6 +154,7 @@ describe("TagService.update", () => {
           {
             id: "tag-ios",
             name: "iOS",
+            description: "",
             created_at: "2026-03-22T00:00:00.000Z",
             updated_at: "2026-03-22T00:00:00.000Z",
           },
@@ -182,12 +199,14 @@ describe("TagService.delete", () => {
           {
             id: "tag-deleted",
             name: "deleted",
+            description: "",
             created_at: "2026-03-22T00:00:00.000Z",
             updated_at: "2026-03-22T00:00:00.000Z",
           },
           {
             id: "tag-keep",
             name: "keep",
+            description: "",
             created_at: "2026-03-22T00:00:00.000Z",
             updated_at: "2026-03-22T00:00:00.000Z",
           },
