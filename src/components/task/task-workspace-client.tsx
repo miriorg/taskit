@@ -603,6 +603,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [projectName, setProjectName] = useState("");
   const [projectColor, setProjectColor] = useState(DEFAULT_PROJECT_COLOR);
   const [tagName, setTagName] = useState("");
+  const [tagDescription, setTagDescription] = useState("");
   const [viewDraft, setViewDraft] = useState<ViewDraft>(() => createDefaultViewDraft(projectId));
   const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -620,6 +621,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [includeChildProjects, setIncludeChildProjects] = useState(Boolean(projectId));
   const [isProjectCreateDialogOpen, setIsProjectCreateDialogOpen] = useState(false);
   const [isTagCreateDialogOpen, setIsTagCreateDialogOpen] = useState(false);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [tagDialogName, setTagDialogName] = useState("");
+  const [tagDialogDescription, setTagDialogDescription] = useState("");
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [projectDialogName, setProjectDialogName] = useState("");
   const [projectDialogColor, setProjectDialogColor] = useState(DEFAULT_PROJECT_COLOR);
@@ -777,7 +781,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   }, [inlineTagPicker]);
 
   useEffect(() => {
-    if (!isProjectCreateDialogOpen && !isTagCreateDialogOpen && !editingProjectId && !isViewCreateDialogOpen && !editingViewId && !selectedTask) {
+    if (!isProjectCreateDialogOpen && !isTagCreateDialogOpen && !editingTagId && !editingProjectId && !isViewCreateDialogOpen && !editingViewId && !selectedTask) {
       return undefined;
     }
 
@@ -785,13 +789,14 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       if (event.key === "Escape") {
         setIsProjectCreateDialogOpen(false);
         setIsTagCreateDialogOpen(false);
+        closeTagEditDialog();
         closeTaskEditDialog();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [editingProjectId, editingViewId, isProjectCreateDialogOpen, isTagCreateDialogOpen, isViewCreateDialogOpen, selectedTask]);
+  }, [editingProjectId, editingTagId, editingViewId, isProjectCreateDialogOpen, isTagCreateDialogOpen, isViewCreateDialogOpen, selectedTask]);
 
   const isActionPending = (key: string) => key in pendingActions;
 
@@ -1305,6 +1310,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const pendingStatusText = Object.values(pendingActions)[0] ?? null;
   const isProjectCreatePending = isActionPending("project:create");
   const isTagCreatePending = isActionPending("tag:create");
+  const isTagUpdatePending = editingTagId ? isActionPending(`tag:update:${editingTagId}`) : false;
   const isViewCreatePending = isActionPending("view:create");
   const isProjectUpdatePending = projectId ? isActionPending(`project:update:${projectId}`) : false;
   const isProjectDeletePending = projectId ? isActionPending(`project:delete:${projectId}`) : false;
@@ -1315,6 +1321,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const isViewDeletePending = workspace.currentView ? isActionPending(`view:delete:${workspace.currentView.id}`) : false;
   const isEditingViewUpdatePending = editingViewId ? isActionPending(`view:update:${editingViewId}`) : false;
   const isEditingViewDeletePending = editingViewId ? isActionPending(`view:delete:${editingViewId}`) : false;
+  const editingTag = editingTagId ? workspace.tags.find((tag) => tag.id === editingTagId) ?? null : null;
   const editingProject = editingProjectId ? workspace.projects.find((project) => project.id === editingProjectId) ?? null : null;
   const editingView = editingViewId ? workspace.views.find((view) => view.id === editingViewId) ?? null : null;
   const editingProjectDescendantIds = editingProject ? collectDescendantIds(workspace.projects, editingProject.id) : [];
@@ -1338,12 +1345,25 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
   const openTagCreateDialog = () => {
     setTagName("");
+    setTagDescription("");
     setIsTagCreateDialogOpen(true);
   };
 
   const closeTagCreateDialog = () => {
     if (!isTagCreatePending) {
       setIsTagCreateDialogOpen(false);
+    }
+  };
+
+  const openTagEditDialog = (tag: Tag) => {
+    setEditingTagId(tag.id);
+    setTagDialogName(tag.name);
+    setTagDialogDescription(tag.description);
+  };
+
+  const closeTagEditDialog = (force = false) => {
+    if (force || !editingTagId || !isActionPending(`tag:update:${editingTagId}`)) {
+      setEditingTagId(null);
     }
   };
 
@@ -1723,6 +1743,16 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             {workspace.tags.map((tag) => (
               <li key={tag.id} className="chip">
                 <span className="chip__label">{tag.name}</span>
+                <button
+                  aria-label={`Edit tag ${tag.name}`}
+                  className={`button-secondary task-icon-button${editingTagId === tag.id ? " button--busy" : ""}`}
+                  disabled={isActionPending(`tag:update:${tag.id}`)}
+                  title="Edit"
+                  type="button"
+                  onClick={() => openTagEditDialog(tag)}
+                >
+                  <img alt="" aria-hidden="true" className="task-icon" src="/icons/pen-monochrome.svg" />
+                </button>
                 <button
                   aria-label={`Delete tag ${tag.name}`}
                   className={`chip__icon-button${isActionPending(`tag:delete:${tag.id}`) ? " button--busy" : ""}`}
@@ -2485,9 +2515,10 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 runAction("tag:create", "Creating tag...", async () => {
                   const response = await readJson<TagMutationResponse>("/api/tags", {
                     ...withJsonRevision("tag", { method: "POST" }),
-                    body: JSON.stringify({ name: tagName }),
+                    body: JSON.stringify({ name: tagName, description: tagDescription }),
                   });
                   setTagName("");
+                  setTagDescription("");
                   applyTagMutationToWorkspace(response.tag, response.revisions);
                   closeTagCreateDialog();
                   setMessage({ text: "Tag created" });
@@ -2495,6 +2526,12 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               }}
             >
               <input required value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="New tag" />
+              <textarea
+                rows={3}
+                value={tagDescription}
+                onChange={(event) => setTagDescription(event.target.value)}
+                placeholder="Tag description"
+              />
               <div className="modal-actions">
                 <button
                   className="button-secondary"
@@ -2506,6 +2543,64 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 </button>
                 <button className={isTagCreatePending ? "button--busy" : undefined} disabled={isTagCreatePending} type="submit">
                   {isTagCreatePending ? "Adding..." : "Add tag"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+      {editingTag ? (
+        <div className="modal-backdrop" onClick={() => closeTagEditDialog()}>
+          <div
+            aria-modal="true"
+            className="modal-dialog"
+            role="dialog"
+            aria-labelledby="tag-edit-dialog-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="panel-header">
+              <h2 id="tag-edit-dialog-title">Edit Tag</h2>
+              <button
+                aria-label="Close dialog"
+                className="button-secondary task-icon-button"
+                disabled={isTagUpdatePending}
+                type="button"
+                onClick={() => closeTagEditDialog()}
+              >
+                <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
+              </button>
+            </div>
+            <form
+              className="stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                runAction(`tag:update:${editingTag.id}`, "Saving tag...", async () => {
+                  const response = await readJson<TagMutationResponse>(`/api/tags/${editingTag.id}`, {
+                    ...withJsonRevision("tag", { method: "PATCH" }),
+                    body: JSON.stringify({
+                      name: tagDialogName,
+                      description: tagDialogDescription,
+                    }),
+                  });
+                  applyTagMutationToWorkspace(response.tag, response.revisions);
+                  closeTagEditDialog(true);
+                  setMessage({ text: "Tag updated" });
+                }, "tag");
+              }}
+            >
+              <input value={tagDialogName} onChange={(event) => setTagDialogName(event.target.value)} placeholder="Tag name" />
+              <textarea
+                rows={3}
+                value={tagDialogDescription}
+                onChange={(event) => setTagDialogDescription(event.target.value)}
+                placeholder="Tag description"
+              />
+              <div className="modal-actions">
+                <button className="button-secondary" disabled={isTagUpdatePending} type="button" onClick={() => closeTagEditDialog()}>
+                  Cancel
+                </button>
+                <button className={isTagUpdatePending ? "button--busy" : undefined} disabled={isTagUpdatePending || !tagDialogName.trim()} type="submit">
+                  {isTagUpdatePending ? "Saving..." : "Save tag"}
                 </button>
               </div>
             </form>
