@@ -81,6 +81,18 @@ select {
   background: rgba(248, 251, 253, 0.96);
 }
 
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.panel-header h2 {
+  margin: 0;
+}
+
 .status-banner {
   display: inline-flex;
   align-items: center;
@@ -138,6 +150,33 @@ select {
 
 .list a {
   display: block;
+}
+
+.project-nav {
+  gap: 4px;
+}
+
+.project-nav__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 4px 8px 4px calc(var(--project-row-indent, 0px) + 8px);
+  background: var(--project-row-color, #d8e7f1);
+}
+
+.project-nav__link {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 4px 0;
+}
+
+.project-nav__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
 }
 
 .chip-list {
@@ -580,9 +619,15 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 36px;
   padding: 0;
   border: 0;
   background: transparent;
+  line-height: 1;
+}
+
+.task-icon-button__text {
+  font-size: 24px;
   line-height: 1;
 }
 
@@ -803,6 +848,40 @@ button:disabled {
   to {
     transform: rotate(360deg);
   }
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(23, 48, 73, 0.38);
+  backdrop-filter: blur(3px);
+  z-index: 1000;
+}
+
+.modal-dialog {
+  width: min(100%, 420px);
+  border: 1px solid rgba(23, 48, 73, 0.16);
+  border-radius: 18px;
+  padding: 18px;
+  background: rgba(248, 251, 253, 0.98);
+  box-shadow: 0 18px 50px rgba(23, 48, 73, 0.22);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.modal-section {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(23, 48, 73, 0.12);
 }
 
 @media (max-width: 1100px) {
