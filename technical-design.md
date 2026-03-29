@@ -461,6 +461,7 @@ type TaskListItemDto = {
     - サブプロジェクト作成
   - 保存ビュー編集
     - View 画面では通常はビュー編集を表示し、タスク選択時はタスク編集を優先表示する
+  - プロジェクト、タグ、保存ビューの新規作成は追加ボタンからモーダルダイアログで行う
 
 ### 13.3. MVP画面要素
 
@@ -469,14 +470,15 @@ type TaskListItemDto = {
   - `完了` プロジェクトでは完了済みタスクを主一覧として表示する
   - プロジェクト表示は必要箇所のみ `[Project]` 形式のパス表示を使う
 - プロジェクト編集
-  - `Project Name`, `Color`, `Parent Project Dropdown`, `Sub Project Name`, `Query` を持つ
+  - 通常の新規プロジェクト作成時の初期カラーは白(`#ffffff`)とする
+  - `Project Name`, `Color`, `Parent Project Dropdown`, `Sub Project Name` を持つ
   - 親候補からは自分自身、子孫、`Inbox`, `完了` を除外する
 - タスク編集
-  - `Title`, `Due`, `Priority`, `Project`, `Tag` を編集可能
+  - `Title`, `Description`, `Due`, `Priority`, `Project`, `Tag` を編集可能
   - View 画面で `Edit` を押した場合も同じ編集フォームを使う
 - タグ選択
-  - MVP ではチェックボックス中心の簡易 UI を使う
-  - 検索付き Tag Cloud への移行は MVP 後の拡張とする
+  - 選択済みタグの一覧表示と、検索入力付き `Tag Cloud` による追加を行う
+  - `Title` / `Description` 入力中の `#` または `＃` をトリガに、インラインのタグ候補選択 UI を開ける
 
 ### 13.4. テーマ設計
 
