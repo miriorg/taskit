@@ -32,6 +32,7 @@ function createMaster(): ProjectMasterFile {
       {
         id: INBOX_PROJECT_ID,
         name: "Inbox",
+        description: "",
         color: "#8899aa",
         parent_id: null,
         system: true,
@@ -41,6 +42,7 @@ function createMaster(): ProjectMasterFile {
       {
         id: DONE_PROJECT_ID,
         name: "Done",
+        description: "",
         color: "#556677",
         parent_id: null,
         system: true,
@@ -50,6 +52,7 @@ function createMaster(): ProjectMasterFile {
       {
         id: "proj-parent",
         name: "Parent",
+        description: "",
         color: "#336699",
         parent_id: null,
         system: false,
@@ -59,6 +62,7 @@ function createMaster(): ProjectMasterFile {
       {
         id: "proj-child",
         name: "Child",
+        description: "",
         color: "#336699",
         parent_id: "proj-parent",
         system: false,

@@ -85,6 +85,7 @@ export class ProjectService {
     const project: Project = {
       id: randomUUID(),
       name: payload.name,
+      description: payload.description?.trim() ?? "",
       color: payload.color,
       parent_id: payload.parent_id ?? null,
       system: false,
@@ -155,6 +156,7 @@ export class ProjectService {
     const updatedProject: Project = {
       ...currentProject,
       ...payload,
+      ...(payload.description !== undefined ? { description: payload.description.trim() } : {}),
       parent_id: payload.parent_id ?? currentProject.parent_id,
       updated_at: now,
     };

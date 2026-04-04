@@ -50,6 +50,7 @@ const projectMaster: ProjectMasterFile = {
     {
       id: INBOX_PROJECT_ID,
       name: "Inbox",
+      description: "",
       color: "#8899aa",
       parent_id: null,
       system: true,
@@ -59,6 +60,7 @@ const projectMaster: ProjectMasterFile = {
     {
       id: "proj-parent",
       name: "Parent",
+      description: "",
       color: "#336699",
       parent_id: null,
       system: false,
@@ -68,6 +70,7 @@ const projectMaster: ProjectMasterFile = {
     {
       id: "proj-child",
       name: "Child",
+      description: "",
       color: "#336699",
       parent_id: "proj-parent",
       system: false,
@@ -77,6 +80,7 @@ const projectMaster: ProjectMasterFile = {
     {
       id: DONE_PROJECT_ID,
       name: "Done",
+      description: "",
       color: "#556677",
       parent_id: null,
       system: true,

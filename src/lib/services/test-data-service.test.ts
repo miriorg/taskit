@@ -66,6 +66,7 @@ describe("TestDataService", () => {
           {
             id: "proj-1",
             name: "Work",
+            description: "",
             color: "#123456",
             parent_id: null,
             system: false,
@@ -117,6 +118,7 @@ describe("TestDataService", () => {
           {
             id: "proj-1",
             name: "Work",
+            description: "",
             color: "#123456",
             parent_id: null,
             system: false,

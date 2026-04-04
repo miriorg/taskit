@@ -23,6 +23,7 @@ export const moveTaskInputSchema = z.object({
 
 export const createProjectInputSchema = z.object({
   name: z.string().trim().min(1),
+  description: z.string().optional(),
   color: z.string().trim().min(1),
   parent_id: z.string().min(1).nullable().optional(),
 });

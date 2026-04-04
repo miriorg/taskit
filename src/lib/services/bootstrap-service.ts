@@ -19,6 +19,7 @@ export function createInitialProjectMasterFile(now = nowIsoString()): ProjectMas
       {
         id: INBOX_PROJECT_ID,
         name: "インボックス",
+        description: "",
         color: "#808080",
         parent_id: null,
         system: true,
@@ -28,6 +29,7 @@ export function createInitialProjectMasterFile(now = nowIsoString()): ProjectMas
       {
         id: DONE_PROJECT_ID,
         name: "完了",
+        description: "",
         color: "#4caf50",
         parent_id: null,
         system: true,

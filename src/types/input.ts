@@ -17,6 +17,7 @@ export type MoveTaskInput = {
 
 export type CreateProjectInput = {
   name: string;
+  description?: string;
   color: string;
   parent_id?: string | null;
 };

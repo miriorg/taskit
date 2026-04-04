@@ -601,15 +601,13 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [taskPriority, setTaskPriority] = useState("");
   const [taskTagIds, setTaskTagIds] = useState<string[]>([]);
   const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
   const [projectColor, setProjectColor] = useState(DEFAULT_PROJECT_COLOR);
   const [tagName, setTagName] = useState("");
   const [tagDescription, setTagDescription] = useState("");
   const [viewDraft, setViewDraft] = useState<ViewDraft>(() => createDefaultViewDraft(projectId));
   const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [projectRename, setProjectRename] = useState("");
-  const [projectEditColor, setProjectEditColor] = useState(DEFAULT_PROJECT_COLOR);
-  const [parentProjectId, setParentProjectId] = useState("");
   const [subprojectName, setSubprojectName] = useState("");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedTaskRevisionProjectId, setSelectedTaskRevisionProjectId] = useState<string | null>(null);
@@ -619,6 +617,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [collapsedProjectGroups, setCollapsedProjectGroups] = useState<Record<string, boolean>>({});
   const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(true);
   const [includeChildProjects, setIncludeChildProjects] = useState(Boolean(projectId));
+  const [isTaskCreateDialogOpen, setIsTaskCreateDialogOpen] = useState(false);
   const [isProjectCreateDialogOpen, setIsProjectCreateDialogOpen] = useState(false);
   const [isTagCreateDialogOpen, setIsTagCreateDialogOpen] = useState(false);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
@@ -626,6 +625,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [tagDialogDescription, setTagDialogDescription] = useState("");
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [projectDialogName, setProjectDialogName] = useState("");
+  const [projectDialogDescription, setProjectDialogDescription] = useState("");
   const [projectDialogColor, setProjectDialogColor] = useState(DEFAULT_PROJECT_COLOR);
   const [projectDialogParentId, setProjectDialogParentId] = useState("");
   const [isViewCreateDialogOpen, setIsViewCreateDialogOpen] = useState(false);
@@ -711,15 +711,6 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   }, [includeChildProjects, projectId, searchQuery, viewId]);
 
   useEffect(() => {
-    if (projectId) {
-      const currentProject = workspace.projects.find((project) => project.id === projectId);
-      setProjectRename(currentProject?.name ?? "");
-      setProjectEditColor(currentProject?.color ?? DEFAULT_PROJECT_COLOR);
-      setParentProjectId(currentProject?.parent_id ?? "");
-    }
-  }, [projectId, workspace.projects]);
-
-  useEffect(() => {
     setIncludeChildProjects(Boolean(projectId));
   }, [projectId]);
 
@@ -781,12 +772,13 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   }, [inlineTagPicker]);
 
   useEffect(() => {
-    if (!isProjectCreateDialogOpen && !isTagCreateDialogOpen && !editingTagId && !editingProjectId && !isViewCreateDialogOpen && !editingViewId && !selectedTask) {
+    if (!isTaskCreateDialogOpen && !isProjectCreateDialogOpen && !isTagCreateDialogOpen && !editingTagId && !editingProjectId && !isViewCreateDialogOpen && !editingViewId && !selectedTask) {
       return undefined;
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        setIsTaskCreateDialogOpen(false);
         setIsProjectCreateDialogOpen(false);
         setIsTagCreateDialogOpen(false);
         closeTagEditDialog();
@@ -796,7 +788,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [editingProjectId, editingTagId, editingViewId, isProjectCreateDialogOpen, isTagCreateDialogOpen, isViewCreateDialogOpen, selectedTask]);
+  }, [editingProjectId, editingTagId, editingViewId, isProjectCreateDialogOpen, isTagCreateDialogOpen, isTaskCreateDialogOpen, isViewCreateDialogOpen, selectedTask]);
 
   const isActionPending = (key: string) => key in pendingActions;
 
@@ -1162,6 +1154,17 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     setInlineTagPicker(null);
   };
 
+  const openTaskCreateDialog = () => {
+    resetCreateTaskForm();
+    setIsTaskCreateDialogOpen(true);
+  };
+
+  const closeTaskCreateDialog = () => {
+    if (!isTaskCreatePending) {
+      setIsTaskCreateDialogOpen(false);
+    }
+  };
+
   const openInlineTagPicker = (
     target: InlineTagPickerState["target"],
     position: Pick<InlineTagPickerState, "top" | "left">,
@@ -1312,12 +1315,10 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const isTagCreatePending = isActionPending("tag:create");
   const isTagUpdatePending = editingTagId ? isActionPending(`tag:update:${editingTagId}`) : false;
   const isViewCreatePending = isActionPending("view:create");
-  const isProjectUpdatePending = projectId ? isActionPending(`project:update:${projectId}`) : false;
   const isProjectDeletePending = projectId ? isActionPending(`project:delete:${projectId}`) : false;
   const isSubprojectCreatePending = projectId ? isActionPending(`project:create-child:${projectId}`) : false;
   const isTaskCreatePending = isActionPending("task:create");
   const isSelectedTaskUpdatePending = selectedTask ? isActionPending(`task:update:${selectedTask.id}`) : false;
-  const isViewUpdatePending = workspace.currentView ? isActionPending(`view:update:${workspace.currentView.id}`) : false;
   const isViewDeletePending = workspace.currentView ? isActionPending(`view:delete:${workspace.currentView.id}`) : false;
   const isEditingViewUpdatePending = editingViewId ? isActionPending(`view:update:${editingViewId}`) : false;
   const isEditingViewDeletePending = editingViewId ? isActionPending(`view:delete:${editingViewId}`) : false;
@@ -1333,6 +1334,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
 
   const openProjectCreateDialog = () => {
     setProjectName("");
+    setProjectDescription("");
     setProjectColor(DEFAULT_PROJECT_COLOR);
     setIsProjectCreateDialogOpen(true);
   };
@@ -1370,6 +1372,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const openProjectEditDialog = (project: Project) => {
     setEditingProjectId(project.id);
     setProjectDialogName(project.name);
+    setProjectDialogDescription(project.description);
     setProjectDialogColor(project.color);
     setProjectDialogParentId(project.parent_id ?? "");
     setSubprojectName("");
@@ -1425,6 +1428,15 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   }, [activeTaskId, sortedVisibleTasks]);
 
   useEffect(() => {
+    if (!isTaskCreateDialogOpen) {
+      return;
+    }
+
+    createTaskInputRef.current?.focus();
+    createTaskInputRef.current?.select();
+  }, [isTaskCreateDialogOpen]);
+
+  useEffect(() => {
     if (!shortcutPrefix) {
       return undefined;
     }
@@ -1474,10 +1486,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         return;
       }
 
-      if (event.key === "q" && createTaskInputRef.current) {
+      if (event.key === "q") {
         event.preventDefault();
-        createTaskInputRef.current.focus();
-        createTaskInputRef.current.select();
+        openTaskCreateDialog();
         return;
       }
 
@@ -1842,7 +1853,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           </div>
         ) : null}
         <header className="panel">
-          <h1>{viewId ? workspace.currentView?.name ?? "View" : projectId ? "Project" : "Inbox"}</h1>
+          <h1>{viewId ? workspace.currentView?.name ?? "View" : projectId ? currentProject?.name ?? "Project" : "Inbox"}</h1>
           {projectId ? (
             !currentProject ? (
               <p>Loading project...</p>
@@ -1850,72 +1861,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               <p>System project settings are fixed.</p>
             ) : (
               <div className="stack">
-                <form
-                  className="inline-form"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    runAction(`project:update:${projectId}`, "Saving project...", async () => {
-                      const response = await readJson<ProjectMutationResponse>(`/api/projects/${projectId}`, {
-                        ...withJsonRevision("project", { method: "PATCH" }),
-                        body: JSON.stringify({
-                          name: projectRename,
-                          color: projectEditColor,
-                          parent_id: parentProjectId || null,
-                        }),
-                      });
-                      applyProjectMutationToWorkspace(response.project, response.revisions);
-                      setMessage({ text: "Project updated" });
-                    }, "project");
-                  }}
-                >
-                  <input value={projectRename} onChange={(event) => setProjectRename(event.target.value)} />
-                  <label className="color-picker-button" style={{ backgroundColor: projectEditColor }}>
-                    <span className="sr-only">Choose project color</span>
-                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/palette-monochrome.svg" />
-                    <input
-                      className="color-picker-button__input"
-                      value={projectEditColor}
-                      onChange={(event) => setProjectEditColor(event.target.value)}
-                      type="color"
-                    />
-                  </label>
-                  <select value={parentProjectId} onChange={(event) => setParentProjectId(event.target.value)}>
-                    <option value="">No parent</option>
-                    {availableParentProjects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    aria-label="Save project"
-                    className={`button-secondary task-icon-button${isProjectUpdatePending ? " button--busy" : ""}`}
-                    disabled={isProjectUpdatePending || !projectRename.trim()}
-                    title="Save project"
-                    type="submit"
-                  >
-                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/save-monochrome.svg" />
-                  </button>
-                  <button
-                    aria-label="Delete project"
-                    className={`button-secondary task-icon-button task-icon-button--danger${isProjectDeletePending ? " button--busy" : ""}`}
-                    disabled={isProjectDeletePending}
-                    title="Delete project"
-                    type="button"
-                    onClick={() =>
-                      runAction(`project:delete:${projectId}`, "Deleting project...", async () => {
-                        const response = await readJson<ProjectDeleteResponse>(
-                          `/api/projects/${projectId}`,
-                          withExpectedRevision("project", { method: "DELETE" }),
-                        );
-                        applyProjectDeletionToWorkspace(response.deletedProjectIds, response.revisions);
-                        window.location.href = "/inbox";
-                      }, "project")
-                    }
-                  >
-                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/trash-monochrome.svg" />
-                  </button>
-                </form>
+                <p>{currentProject.description || "No description"}</p>
               </div>
             )
           ) : viewId ? (
@@ -1957,6 +1903,76 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             >
               <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
             </button>
+            {projectId && currentProject && !currentProject.system ? (
+              <div className="inline-form__end">
+                <button
+                  aria-label="Delete project"
+                  className={`button-secondary task-icon-button task-icon-button--danger${isProjectDeletePending ? " button--busy" : ""}`}
+                  disabled={isProjectDeletePending}
+                  title="Delete project"
+                  type="button"
+                  onClick={() =>
+                    runAction(`project:delete:${projectId}`, "Deleting project...", async () => {
+                      const response = await readJson<ProjectDeleteResponse>(
+                        `/api/projects/${projectId}`,
+                        withExpectedRevision("project", { method: "DELETE" }),
+                      );
+                      applyProjectDeletionToWorkspace(response.deletedProjectIds, response.revisions);
+                      window.location.href = "/inbox";
+                    }, "project")
+                  }
+                >
+                  <img alt="" aria-hidden="true" className="task-icon" src="/icons/trash-monochrome.svg" />
+                </button>
+                <button
+                  aria-label="Edit project"
+                  className="button-secondary task-icon-button"
+                  disabled={isProjectDeletePending}
+                  title="Edit project"
+                  type="button"
+                  onClick={() => openProjectEditDialog(currentProject)}
+                >
+                  <img alt="" aria-hidden="true" className="task-icon" src="/icons/pen-monochrome.svg" />
+                </button>
+              </div>
+            ) : null}
+            {viewId && workspace.currentView ? (() => {
+              const currentView = workspace.currentView;
+
+              return (
+              <div className="inline-form__end">
+                <button
+                  aria-label="Edit view"
+                  className="button-secondary task-icon-button"
+                  disabled={isViewDeletePending}
+                  title="Edit view"
+                  type="button"
+                  onClick={() => openViewEditDialog(currentView)}
+                >
+                  <img alt="" aria-hidden="true" className="task-icon" src="/icons/pen-monochrome.svg" />
+                </button>
+                <button
+                  aria-label="Delete view"
+                  className={`button-secondary task-icon-button task-icon-button--danger${isViewDeletePending ? " button--busy" : ""}`}
+                  disabled={isViewDeletePending}
+                  title="Delete view"
+                  type="button"
+                  onClick={() =>
+                    runAction(`view:delete:${workspace.currentView?.id}`, "Deleting view...", async () => {
+                      const response = await readJson<ViewDeleteResponse>(
+                        `/api/views/${workspace.currentView?.id}`,
+                        withExpectedRevision("view", { method: "DELETE" }),
+                      );
+                      applyViewDeletionToWorkspace(response.deletedViewId, response.revisions);
+                      window.location.href = "/inbox";
+                    }, "view")
+                  }
+                >
+                  <img alt="" aria-hidden="true" className="task-icon" src="/icons/trash-monochrome.svg" />
+                </button>
+              </div>
+              );
+            })() : null}
           </form>
           <p className="section-caption">
             Shortcuts: <code>/</code> search, <code>q</code> new task, <code>e</code> edit selected, <code>x</code> complete or
@@ -1965,75 +1981,22 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         </header>
 
         <section className="panel">
-          {!isDoneProjectPage ? (
-            <form
-              className="stack"
-              onSubmit={(event) => {
-                event.preventDefault();
-                runAction("task:create", "Creating task...", async () => {
-                  const response = await readJson<TaskMutationResponse>("/api/tasks", {
-                    ...withJsonRevision(`task:${projectId ?? INBOX_PROJECT_ID}`, { method: "POST" }),
-                    body: JSON.stringify({
-                      title: taskTitle,
-                      description: taskDescription.trim() || null,
-                      due_date: fromDateTimeLocal(taskDueDate),
-                      priority: taskPriority === "" ? null : Number(taskPriority),
-                      tag_ids: taskTagIds,
-                      project_id: projectId ?? INBOX_PROJECT_ID,
-                    }),
-                  });
-                  resetCreateTaskForm();
-                  applyTaskMutationToWorkspace(response.task, response.revisions);
-                  setMessage({ text: "Task created" });
-                }, "task");
-              }}
-            >
-              <input
-                required
-                ref={createTaskInputRef}
-                value={taskTitle}
-                onChange={(event) => handleInlineTagInput(event.currentTarget, "create", setTaskTitle)}
-                onKeyDown={(event) => handleInlineTagShortcut(event, "create")}
-                placeholder="New task"
-              />
-              <textarea
-                rows={3}
-                value={taskDescription}
-                onChange={(event) => handleInlineTagInput(event.currentTarget, "create", setTaskDescription)}
-                onKeyDown={(event) => handleInlineTagShortcut(event, "create")}
-                placeholder="New description"
-              />
-              <div className="field-row">
-                <input type="datetime-local" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} />
-                <select value={taskPriority} onChange={(event) => setTaskPriority(event.target.value)}>
-                  <option value="">Priority</option>
-                  {Array.from({ length: 10 }, (_, value) => (
-                    <option key={value} value={value}>
-                      P{value}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {renderTagSelectionSummary(taskTagIds, "create")}
+          {searchQuery ? <p className="section-caption">Search results for "{searchQuery}"</p> : null}
+
+          <div className="panel-header">
+            <h2 className="section-heading">{`▼ ${workspaceLabel}`}</h2>
+            {!isDoneProjectPage ? (
               <button
                 aria-label="Add task"
-                className={`button-secondary task-icon-button${isTaskCreatePending ? " button--busy" : ""}`}
-                disabled={isTaskCreatePending || !taskTitle.trim()}
-                title="Add task"
-                type="submit"
+                className="button-secondary task-icon-button"
+                disabled={isTaskCreatePending}
+                type="button"
+                onClick={openTaskCreateDialog}
               >
                 <img alt="" aria-hidden="true" className="task-icon task-icon--wide" src="/icons/add-tasks.svg" />
               </button>
-            </form>
-          ) : (
-            <p>完了したタスクの保管先です。ここでは完了タスクのみ表示します。</p>
-          )}
-        </section>
-
-        <section className="panel">
-          {searchQuery ? <p className="section-caption">Search results for "{searchQuery}"</p> : null}
-
-          <h2 className="section-heading">{`▼ ${workspaceLabel}`}</h2>
+            ) : null}
+          </div>
           {projectId && !currentProject?.system ? (
             <label className="checkbox-item checkbox-item--inline">
               <input checked={includeChildProjects} type="checkbox" onChange={(event) => setIncludeChildProjects(event.target.checked)} />
@@ -2119,152 +2082,6 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         ) : null}
       </main>
 
-      <section className="workspace__detail">
-        <div className="panel">
-          <h2>{viewId ? workspace.currentView?.name ?? "View" : "Details"}</h2>
-          {viewId ? (
-            workspace.currentView ? (
-              <form
-                className="stack"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  runAction(`view:update:${workspace.currentView?.id}`, "Saving view...", async () => {
-                    const response = await readJson<ViewMutationResponse>(`/api/views/${workspace.currentView?.id}`, {
-                      ...withJsonRevision("view", { method: "PATCH" }),
-                      body: JSON.stringify({
-                        name: viewDraft.name,
-                        filters: {
-                          ...viewDraft.filters,
-                          query: viewDraft.filters.query.trim() || undefined,
-                        },
-                        sort: viewDraft.sort,
-                        display_options: viewDraft.display_options,
-                      }),
-                    });
-                    applyViewMutationToWorkspace(response.view, response.revisions);
-                    setMessage({ text: "View updated" });
-                  }, "view");
-                }}
-              >
-                <input
-                  value={viewDraft.name}
-                  onChange={(event) => setViewDraft((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="View name"
-                />
-                <input
-                  value={viewDraft.filters.query}
-                  onChange={(event) =>
-                    setViewDraft((current) => ({
-                      ...current,
-                      filters: {
-                        ...current.filters,
-                        query: event.target.value,
-                      },
-                    }))
-                  }
-                  placeholder="Text filter"
-                />
-                <select
-                  value={viewDraft.filters.due}
-                  onChange={(event) =>
-                    setViewDraft((current) => ({
-                      ...current,
-                      filters: {
-                        ...current.filters,
-                        due: event.target.value as ViewDraft["filters"]["due"],
-                      },
-                    }))
-                  }
-                >
-                  <option value="any">Any due date</option>
-                  <option value="today">Due today</option>
-                  <option value="overdue">Overdue</option>
-                  <option value="none">No due date</option>
-                </select>
-                <label className="checkbox-item">
-                  <input
-                    checked={viewDraft.display_options.show_completed}
-                    type="checkbox"
-                    onChange={(event) =>
-                      setViewDraft((current) => ({
-                        ...current,
-                        display_options: {
-                          show_completed: event.target.checked,
-                        },
-                      }))
-                    }
-                  />
-                  <span>Show completed</span>
-                </label>
-                <label className="checkbox-item">
-                  <input
-                    checked={viewDraft.filters.include_project_descendants}
-                    type="checkbox"
-                    onChange={(event) =>
-                      setViewDraft((current) => ({
-                        ...current,
-                        filters: {
-                          ...current.filters,
-                          include_project_descendants: event.target.checked,
-                        },
-                      }))
-                    }
-                  />
-                  <span>Include child projects</span>
-                </label>
-                <ViewProjectFilter
-                  projects={workspace.projects}
-                  selectedProjectIds={viewDraft.filters.project_ids}
-                  expandedProjectIds={expandedViewProjectIds}
-                  onToggleProject={toggleViewProjectFilterId}
-                  onToggleExpanded={toggleExpandedViewProjectId}
-                />
-                <TagCloud
-                  tags={workspace.tags}
-                  selectedTagIds={viewDraft.filters.tag_ids}
-                  selectedChipVariant="tag"
-                  onChange={(tagIds) =>
-                    setViewDraft((current) => ({
-                      ...current,
-                      filters: {
-                        ...current.filters,
-                        tag_ids: tagIds,
-                      },
-                    }))
-                  }
-                  inputPlaceholder="Filter tags"
-                />
-                <div className="inline-form">
-                  <button className={isViewUpdatePending ? "button--busy" : undefined} disabled={isViewUpdatePending || !viewDraft.name.trim()} type="submit">
-                    {isViewUpdatePending ? "Saving..." : "Save view"}
-                  </button>
-                  <button
-                    className={`button-secondary${isViewDeletePending ? " button--busy" : ""}`}
-                    disabled={isViewDeletePending}
-                    type="button"
-                    onClick={() =>
-                      runAction(`view:delete:${workspace.currentView?.id}`, "Deleting view...", async () => {
-                        const response = await readJson<ViewDeleteResponse>(
-                          `/api/views/${workspace.currentView?.id}`,
-                          withExpectedRevision("view", { method: "DELETE" }),
-                        );
-                        applyViewDeletionToWorkspace(response.deletedViewId, response.revisions);
-                        window.location.href = "/inbox";
-                      }, "view")
-                    }
-                  >
-                    {isViewDeletePending ? "Deleting..." : "Delete view"}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <p>View not found.</p>
-            )
-          ) : (
-            <p>Select a task to edit tags, due date, and priority.</p>
-          )}
-        </div>
-      </section>
       {inlineTagPicker ? (
         <div
           className="inline-tag-picker"
@@ -2284,6 +2101,102 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             onRequestClose={closeInlineTagPickerAndRestoreFocus}
             onTagCommitted={closeInlineTagPickerAndRestoreFocus}
           />
+        </div>
+      ) : null}
+      {isTaskCreateDialogOpen ? (
+        <div className="modal-backdrop" onClick={closeTaskCreateDialog}>
+          <div
+            aria-modal="true"
+            className="modal-dialog"
+            role="dialog"
+            aria-labelledby="task-create-dialog-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="panel-header">
+              <h2 id="task-create-dialog-title">Add Task</h2>
+              <button
+                aria-label="Close dialog"
+                className="button-secondary task-icon-button"
+                disabled={isTaskCreatePending}
+                type="button"
+                onClick={closeTaskCreateDialog}
+              >
+                <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
+              </button>
+            </div>
+            <form
+              className="stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                runAction("task:create", "Creating task...", async () => {
+                  const response = await readJson<TaskMutationResponse>("/api/tasks", {
+                    ...withJsonRevision(`task:${projectId ?? INBOX_PROJECT_ID}`, { method: "POST" }),
+                    body: JSON.stringify({
+                      title: taskTitle,
+                      description: taskDescription.trim() || null,
+                      due_date: fromDateTimeLocal(taskDueDate),
+                      priority: taskPriority === "" ? null : Number(taskPriority),
+                      tag_ids: taskTagIds,
+                      project_id: projectId ?? INBOX_PROJECT_ID,
+                    }),
+                  });
+                  resetCreateTaskForm();
+                  setIsTaskCreateDialogOpen(false);
+                  applyTaskMutationToWorkspace(response.task, response.revisions);
+                  setMessage({ text: "Task created" });
+                }, "task");
+              }}
+            >
+              <input
+                required
+                ref={createTaskInputRef}
+                value={taskTitle}
+                onChange={(event) => handleInlineTagInput(event.currentTarget, "create", setTaskTitle)}
+                onKeyDown={(event) => handleInlineTagShortcut(event, "create")}
+                placeholder="New task"
+              />
+              <textarea
+                rows={3}
+                value={taskDescription}
+                onChange={(event) => handleInlineTagInput(event.currentTarget, "create", setTaskDescription)}
+                onKeyDown={(event) => handleInlineTagShortcut(event, "create")}
+                placeholder="New description"
+              />
+              <div className="field-row">
+                <input type="datetime-local" value={taskDueDate} onChange={(event) => setTaskDueDate(event.target.value)} />
+                <select value={taskPriority} onChange={(event) => setTaskPriority(event.target.value)}>
+                  <option value="">Priority</option>
+                  {Array.from({ length: 10 }, (_, value) => (
+                    <option key={value} value={value}>
+                      P{value}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {renderTagSelectionSummary(taskTagIds, "create")}
+              <div className="modal-actions">
+                <div className="modal-actions__end">
+                  <button
+                    aria-label="Cancel"
+                    className="button-secondary task-icon-button"
+                    disabled={isTaskCreatePending}
+                    type="button"
+                    onClick={closeTaskCreateDialog}
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
+                  </button>
+                  <button
+                    aria-label="Save task"
+                    className={`task-icon-button${isTaskCreatePending ? " button--busy" : ""}`}
+                    disabled={isTaskCreatePending || !taskTitle.trim()}
+                    type="submit"
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/save-monochrome.svg" />
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
         </div>
       ) : null}
       {selectedTask ? (
@@ -2396,17 +2309,26 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               </select>
               {renderTagSelectionSummary(selectedTask.tag_ids, "edit")}
               <div className="modal-actions">
-                <button
-                  className="button-secondary"
-                  disabled={isSelectedTaskUpdatePending}
-                  type="button"
-                  onClick={() => closeTaskEditDialog()}
-                >
-                  Cancel
-                </button>
-                <button className={isSelectedTaskUpdatePending ? "button--busy" : undefined} disabled={isSelectedTaskUpdatePending || !selectedTask.title.trim()} type="submit">
-                  {isSelectedTaskUpdatePending ? "Saving..." : "Save task"}
-                </button>
+                <div />
+                <div className="modal-actions__end">
+                  <button
+                    aria-label="Cancel"
+                    className="button-secondary task-icon-button"
+                    disabled={isSelectedTaskUpdatePending}
+                    type="button"
+                    onClick={() => closeTaskEditDialog()}
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
+                  </button>
+                  <button
+                    aria-label="Save task"
+                    className={`task-icon-button${isSelectedTaskUpdatePending ? " button--busy" : ""}`}
+                    disabled={isSelectedTaskUpdatePending || !selectedTask.title.trim()}
+                    type="submit"
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/save-monochrome.svg" />
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -2445,10 +2367,12 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     ...withJsonRevision("project", { method: "POST" }),
                     body: JSON.stringify({
                       name: projectName,
+                      description: projectDescription,
                       color: projectColor,
                     }),
                   });
                   setProjectName("");
+                  setProjectDescription("");
                   applyProjectMutationToWorkspace(response.project, response.revisions);
                   closeProjectCreateDialog();
                   setMessage({ text: "Project created" });
@@ -2456,6 +2380,12 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               }}
             >
               <input required value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="New project" />
+              <textarea
+                rows={3}
+                value={projectDescription}
+                onChange={(event) => setProjectDescription(event.target.value)}
+                placeholder="Project description"
+              />
               <label className="color-picker-button" style={{ backgroundColor: projectColor }}>
                 <span className="sr-only">Choose project color</span>
                 <img alt="" aria-hidden="true" className="task-icon" src="/icons/palette-monochrome.svg" />
@@ -2467,17 +2397,25 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 />
               </label>
               <div className="modal-actions">
-                <button
-                  className="button-secondary"
-                  disabled={isProjectCreatePending}
-                  type="button"
-                  onClick={closeProjectCreateDialog}
-                >
-                  Cancel
-                </button>
-                <button className={isProjectCreatePending ? "button--busy" : undefined} disabled={isProjectCreatePending} type="submit">
-                  {isProjectCreatePending ? "Adding..." : "Add project"}
-                </button>
+                <div className="modal-actions__end">
+                  <button
+                    aria-label="Cancel"
+                    className="button-secondary task-icon-button"
+                    disabled={isProjectCreatePending}
+                    type="button"
+                    onClick={closeProjectCreateDialog}
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
+                  </button>
+                  <button
+                    aria-label="Save project"
+                    className={`task-icon-button${isProjectCreatePending ? " button--busy" : ""}`}
+                    disabled={isProjectCreatePending}
+                    type="submit"
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/save-monochrome.svg" />
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -2532,17 +2470,25 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 placeholder="Tag description"
               />
               <div className="modal-actions">
-                <button
-                  className="button-secondary"
-                  disabled={isTagCreatePending}
-                  type="button"
-                  onClick={closeTagCreateDialog}
-                >
-                  Cancel
-                </button>
-                <button className={isTagCreatePending ? "button--busy" : undefined} disabled={isTagCreatePending} type="submit">
-                  {isTagCreatePending ? "Adding..." : "Add tag"}
-                </button>
+                <div className="modal-actions__end">
+                  <button
+                    aria-label="Cancel"
+                    className="button-secondary task-icon-button"
+                    disabled={isTagCreatePending}
+                    type="button"
+                    onClick={closeTagCreateDialog}
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
+                  </button>
+                  <button
+                    aria-label="Save tag"
+                    className={`task-icon-button${isTagCreatePending ? " button--busy" : ""}`}
+                    disabled={isTagCreatePending}
+                    type="submit"
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/save-monochrome.svg" />
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -2595,12 +2541,42 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 placeholder="Tag description"
               />
               <div className="modal-actions">
-                <button className="button-secondary" disabled={isTagUpdatePending} type="button" onClick={() => closeTagEditDialog()}>
-                  Cancel
+                <button
+                  aria-label="Delete tag"
+                  className={`button-secondary task-icon-button task-icon-button--danger${isActionPending(`tag:delete:${editingTag.id}`) ? " button--busy" : ""}`}
+                  disabled={isActionPending(`tag:delete:${editingTag.id}`)}
+                  type="button"
+                  onClick={() => {
+                    if (!window.confirm(`Delete tag "${editingTag.name}"?`)) {
+                      return;
+                    }
+
+                    runAction(`tag:delete:${editingTag.id}`, "Deleting tag...", async () => {
+                      const response = await readJson<TagDeleteResponse>(
+                        `/api/tags/${editingTag.id}`,
+                        withExpectedRevision("tag", { method: "DELETE" }),
+                      );
+                      applyTagDeletionToWorkspace(response.deletedTagId, response.revisions);
+                      closeTagEditDialog(true);
+                      setMessage({ text: "Tag deleted" });
+                    }, "tag");
+                  }}
+                >
+                  <img alt="" aria-hidden="true" className="task-icon" src="/icons/trash-monochrome.svg" />
                 </button>
-                <button className={isTagUpdatePending ? "button--busy" : undefined} disabled={isTagUpdatePending || !tagDialogName.trim()} type="submit">
-                  {isTagUpdatePending ? "Saving..." : "Save tag"}
-                </button>
+                <div className="modal-actions__end">
+                  <button aria-label="Cancel" className="button-secondary task-icon-button" disabled={isTagUpdatePending} type="button" onClick={() => closeTagEditDialog()}>
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
+                  </button>
+                  <button
+                    aria-label="Save tag"
+                    className={`task-icon-button${isTagUpdatePending ? " button--busy" : ""}`}
+                    disabled={isTagUpdatePending || !tagDialogName.trim()}
+                    type="submit"
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/save-monochrome.svg" />
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -2636,6 +2612,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     ...withJsonRevision("project", { method: "PATCH" }),
                     body: JSON.stringify({
                       name: projectDialogName,
+                      description: projectDialogDescription,
                       color: projectDialogColor,
                       parent_id: projectDialogParentId || null,
                     }),
@@ -2647,6 +2624,12 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               }}
             >
               <input value={projectDialogName} onChange={(event) => setProjectDialogName(event.target.value)} />
+              <textarea
+                rows={3}
+                value={projectDialogDescription}
+                onChange={(event) => setProjectDialogDescription(event.target.value)}
+                placeholder="Project description"
+              />
               <label className="color-picker-button" style={{ backgroundColor: projectDialogColor }}>
                 <span className="sr-only">Choose project color</span>
                 <img alt="" aria-hidden="true" className="task-icon" src="/icons/palette-monochrome.svg" />
@@ -2699,20 +2682,50 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               </div>
               <div className="modal-actions">
                 <button
-                  className="button-secondary"
-                  disabled={isActionPending(`project:update:${editingProject.id}`)}
+                  aria-label="Delete project"
+                  className={`button-secondary task-icon-button task-icon-button--danger${isActionPending(`project:delete:${editingProject.id}`) ? " button--busy" : ""}`}
+                  disabled={isActionPending(`project:delete:${editingProject.id}`)}
                   type="button"
-                  onClick={() => closeProjectEditDialog()}
+                  onClick={() => {
+                    if (!window.confirm(`Delete project "${editingProject.name}"?`)) {
+                      return;
+                    }
+
+                    runAction(`project:delete:${editingProject.id}`, "Deleting project...", async () => {
+                      const response = await readJson<ProjectDeleteResponse>(
+                        `/api/projects/${editingProject.id}`,
+                        withExpectedRevision("project", { method: "DELETE" }),
+                      );
+                      applyProjectDeletionToWorkspace(response.deletedProjectIds, response.revisions);
+                      closeProjectEditDialog(true);
+                      if (projectId === editingProject.id) {
+                        window.location.href = "/inbox";
+                      }
+                      setMessage({ text: "Project deleted" });
+                    }, "project");
+                  }}
                 >
-                  Cancel
+                  <img alt="" aria-hidden="true" className="task-icon" src="/icons/trash-monochrome.svg" />
                 </button>
-                <button
-                  className={isActionPending(`project:update:${editingProject.id}`) ? "button--busy" : undefined}
-                  disabled={isActionPending(`project:update:${editingProject.id}`) || !projectDialogName.trim()}
-                  type="submit"
-                >
-                  {isActionPending(`project:update:${editingProject.id}`) ? "Saving..." : "Save project"}
-                </button>
+                <div className="modal-actions__end">
+                  <button
+                    aria-label="Cancel"
+                    className="button-secondary task-icon-button"
+                    disabled={isActionPending(`project:update:${editingProject.id}`)}
+                    type="button"
+                    onClick={() => closeProjectEditDialog()}
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
+                  </button>
+                  <button
+                    aria-label="Save project"
+                    className={`task-icon-button${isActionPending(`project:update:${editingProject.id}`) ? " button--busy" : ""}`}
+                    disabled={isActionPending(`project:update:${editingProject.id}`) || !projectDialogName.trim()}
+                    type="submit"
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/save-monochrome.svg" />
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -2853,12 +2866,19 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 inputPlaceholder="Filter tags"
               />
               <div className="modal-actions">
-                <button className="button-secondary" disabled={isViewCreatePending} type="button" onClick={closeViewCreateDialog}>
-                  Cancel
-                </button>
-                <button className={isViewCreatePending ? "button--busy" : undefined} disabled={isViewCreatePending || !viewDraft.name.trim()} type="submit">
-                  {isViewCreatePending ? "Adding..." : "Add view"}
-                </button>
+                <div className="modal-actions__end">
+                  <button aria-label="Cancel" className="button-secondary task-icon-button" disabled={isViewCreatePending} type="button" onClick={closeViewCreateDialog}>
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
+                  </button>
+                  <button
+                    aria-label="Save view"
+                    className={`task-icon-button${isViewCreatePending ? " button--busy" : ""}`}
+                    disabled={isViewCreatePending || !viewDraft.name.trim()}
+                    type="submit"
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/save-monochrome.svg" />
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -2997,10 +3017,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 inputPlaceholder="Filter tags"
               />
               <div className="modal-actions">
-                <button className="button-secondary" disabled={isEditingViewUpdatePending} type="button" onClick={() => closeViewEditDialog()}>
-                  Cancel
-                </button>
-                <button className="button-secondary" disabled={isEditingViewDeletePending} type="button" onClick={() => {
+                <button className={`button-secondary task-icon-button task-icon-button--danger${isEditingViewDeletePending ? " button--busy" : ""}`} disabled={isEditingViewDeletePending} type="button" onClick={() => {
                   if (!window.confirm(`Delete view "${editingView.name}"?`)) {
                     return;
                   }
@@ -3018,11 +3035,21 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     setMessage({ text: "View deleted" });
                   }, "view");
                 }}>
-                  {isEditingViewDeletePending ? "Deleting..." : "Delete view"}
+                  <img alt="" aria-hidden="true" className="task-icon" src="/icons/trash-monochrome.svg" />
                 </button>
-                <button className={isEditingViewUpdatePending ? "button--busy" : undefined} disabled={isEditingViewUpdatePending || !viewDraft.name.trim()} type="submit">
-                  {isEditingViewUpdatePending ? "Saving..." : "Save view"}
-                </button>
+                <div className="modal-actions__end">
+                  <button aria-label="Cancel" className="button-secondary task-icon-button" disabled={isEditingViewUpdatePending} type="button" onClick={() => closeViewEditDialog()}>
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/cross_l.svg" />
+                  </button>
+                  <button
+                    aria-label="Save view"
+                    className={`task-icon-button${isEditingViewUpdatePending ? " button--busy" : ""}`}
+                    disabled={isEditingViewUpdatePending || !viewDraft.name.trim()}
+                    type="submit"
+                  >
+                    <img alt="" aria-hidden="true" className="task-icon" src="/icons/save-monochrome.svg" />
+                  </button>
+                </div>
               </div>
             </form>
           </div>

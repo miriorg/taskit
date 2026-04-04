@@ -27,6 +27,7 @@ export const taskSchema = z.object({
 export const projectSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(1),
+  description: z.string().optional().default(""),
   color: z.string().trim().min(1),
   parent_id: z.string().min(1).nullable(),
   system: z.boolean(),

@@ -219,6 +219,7 @@ describe("TagService.delete", () => {
           {
             id: INBOX_PROJECT_ID,
             name: "Inbox",
+            description: "",
             color: "#808080",
             parent_id: null,
             system: true,
@@ -277,6 +278,7 @@ describe("TaskService.update", () => {
           {
             id: INBOX_PROJECT_ID,
             name: "Inbox",
+            description: "",
             color: "#808080",
             parent_id: null,
             system: true,
@@ -286,6 +288,7 @@ describe("TaskService.update", () => {
           {
             id: DONE_PROJECT_ID,
             name: "Done",
+            description: "",
             color: "#4caf50",
             parent_id: null,
             system: true,

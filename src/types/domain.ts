@@ -29,6 +29,7 @@ export type Task = {
 export type Project = {
   id: EntityId;
   name: string;
+  description: string;
   color: string;
   parent_id: EntityId | null;
   system: boolean;
