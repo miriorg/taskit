@@ -157,6 +157,24 @@ export default function ThemePreviewPage() {
         <h1>Theme Preview</h1>
         <p>今の3カラムレイアウトに当てた背景色と面の組み合わせです。</p>
       </header>
+      <section className={styles.sampleSection}>
+        <h2>Tag Delete Button Sample</h2>
+        <p>`cross_l.svg` の周囲だけをオレンジのボタン面で囲った、タグ削除の擬似表示です。</p>
+        <div className={styles.sampleRow}>
+          <span className={styles.sampleTag}>
+            <span className={styles.sampleTagLabel}>design-review</span>
+            <button className={styles.sampleTagDelete} type="button" aria-label="Delete tag sample">
+              <img alt="" aria-hidden="true" className={styles.sampleTagDeleteIcon} src="/icons/cross_l.svg" />
+            </button>
+          </span>
+          <span className={styles.sampleTag}>
+            <span className={styles.sampleTagLabel}>urgent</span>
+            <button className={styles.sampleTagDelete} type="button" aria-label="Delete tag sample">
+              <img alt="" aria-hidden="true" className={styles.sampleTagDeleteIcon} src="/icons/cross_l.svg" />
+            </button>
+          </span>
+        </div>
+      </section>
       <div className={styles.grid}>
         {themes.map((theme) => (
           <MockWorkspace key={theme.id} theme={theme} />

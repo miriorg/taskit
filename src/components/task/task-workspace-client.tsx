@@ -1742,16 +1742,15 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
           <ul className="chip-list">
             {workspace.tags.map((tag) => (
               <li key={tag.id} className="chip">
-                <span className="chip__label">{tag.name}</span>
                 <button
                   aria-label={`Edit tag ${tag.name}`}
-                  className={`button-secondary task-icon-button${editingTagId === tag.id ? " button--busy" : ""}`}
+                  className={`chip__label-button${editingTagId === tag.id ? " button--busy" : ""}`}
                   disabled={isActionPending(`tag:update:${tag.id}`)}
                   title="Edit"
                   type="button"
                   onClick={() => openTagEditDialog(tag)}
                 >
-                  <img alt="" aria-hidden="true" className="task-icon" src="/icons/pen-monochrome.svg" />
+                  <span className="chip__label">{tag.name}</span>
                 </button>
                 <button
                   aria-label={`Delete tag ${tag.name}`}

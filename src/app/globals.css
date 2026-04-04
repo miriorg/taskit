@@ -203,6 +203,14 @@ select {
   font-weight: 600;
 }
 
+.chip__label-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  line-height: 1.2;
+}
+
 .chip__icon-button {
   display: inline-flex;
   align-items: center;

@@ -51,6 +51,12 @@ corepack pnpm dev
 
 ブラウザで `http://localhost:3000` を開き、Google ログイン後に `/inbox` へ遷移できることを確認します。
 
+開発中に `Cannot find module './vendor-chunks/...'` のような `.next` 配下の欠損エラーが出た場合は、開発ビルド成果物を作り直して再起動します。
+
+```powershell
+corepack pnpm dev:clean
+```
+
 ## Verification commands
 
 ```powershell
