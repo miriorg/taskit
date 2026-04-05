@@ -8,6 +8,46 @@
 初期リリースでは、タスク管理の基本操作を優先し、AIタスク登録とリマインダー通知はMVP対象外とする。
 キーボードショートカットは主要操作に限定して提供する。
 
+## 1.1. Neon 移行方針メモ
+
+Google Drive 保存から Neon Postgres へ移行する前提で、以下を決定済み事項として扱う。
+
+- 既存 Google Drive データの移行は行わない
+- Google ログインは継続する
+- 永続化先は Neon Postgres とする
+- `users` テーブルを導入し、アプリ内の所有者識別は独立した `users.id` を使う
+- 全主要テーブルに `owner_user_id` を持たせる
+- テナント分離は PostgreSQL RLS を併用する
+- `task` と `tag` は中間テーブル `task_tags` で関連付ける
+- `reminders` は独立テーブルで保持する
+- 保存競合は `version` による optimistic locking で扱う
+- service 層は維持を基本としつつ、一部再設計する
+- Vercel Marketplace の Neon は Native integration を使う
+- Preview ごとに Neon branch は分けず、branch-per-preview は採用しない
+- `Inbox` / `Done` はユーザーごとに初回ログイン時に自動作成する
+- `/settings` のテストデータ生成機能も Neon 対応対象に含める
+- `TestDataService` は既存 service を維持し、Neon repository 対応を行う
+- ロールアウトは一括切り替えを前提とする
+- `drive.appdata` scope は Drive 実装削除時に外す
+- 追加監視対象は `slow query` と `auth failure` を優先する
+- task コメントは時刻順表示とし、編集のみ許可、削除は許可しない
+- 添付ファイルの最大サイズは 100MB とし、許可種別は `pdf`, `jpg`, `tif`, `png`, `txt`, `md`, `doc`, `xls`, `ppt`, `ps1`, `psm`, `py` とする
+- task / comment ごとの添付数上限はストレージ容量上限までとする
+- DB 接続文字列は `DATABASE_URL` と `DATABASE_URL_UNPOOLED` の両方を使い分ける
+- アプリ本体の通常 query は pooled な `DATABASE_URL` を使う
+- migration や接続特性を明示したい管理処理は `DATABASE_URL_UNPOOLED` を使う
+- migration 管理は SQL ファイルを採用する
+- DB access は repository / service 分離を維持しつつ、手書き SQL を基本に進める
+- DB 接続ライブラリは `postgres` を採用する
+- `@neondatabase/serverless` は現時点では採用せず、将来 Edge runtime などが必要になった場合の補助候補とする
+- migration 実行は `その他: リリース前の手動実行` を採用する
+
+未決事項:
+
+- 添付ファイル本体の保存先を `Vercel Blob` と `Cloudflare R2` のどちらにするか
+- ロールバック条件と手順の具体化
+- 性能目標の数値化
+
 ## 2. 機能要件
 
 ### 2.1. ユーザー認証
@@ -20,30 +60,39 @@
 
 ### 2.2. データ永続化
 
-- **保存先:** 認証したユーザーの Google Drive。
-- アプリケーション固有のフォルダを作成し、JSON形式の複数ファイルで管理する。
-- 単一ファイルで全データは保持しない。
-- ファイルは以下の単位で分割する。
-  - タグマスタ: `tag.json`
-  - プロジェクトマスタ: `project.json`
-  - ビューマスタ: `view.json`
-  - プロジェクト単位のタスク: `task-[project-id].json`
-- インボックスも1つの固定プロジェクトとして扱い、`task-[inbox-id].json` を持つ。
-- 書き込みは変更のあったファイルのみ行う。
-- 読み込み時に各ファイルの最終更新時刻を保持し、保存直前に Google Drive 上の最終更新時刻と比較する。
-- 最終更新時刻が変化していた場合は自動上書きせず、上書き確認を表示する。
-- オフライン編集や複数タブ編集の最適化は行わない。
-- 一覧取得、タイムスタンプ確認、競合判定を含むデータ整合性の責務はすべてサーバAPI側が持つ。
+- **保存先:** Neon Postgres。
+- 認証ユーザーごとのデータは共有 DB 上で `owner_user_id` により分離する。
+- 全主要テーブルは `owner_user_id` を持ち、PostgreSQL RLS を併用する。
+- `users` テーブルを導入し、アプリ内の所有者識別は独立した `users.id` を使う。
+- `project`, `tag`, `task`, `view` はテーブル単位で管理し、JSON ファイル分割保存は廃止する。
+- `task` と `tag` の関連は `task_tags` 中間テーブルで表現する。
+- `reminders` は独立テーブルで管理する。
+- `views.filters`, `views.sort`, `views.display_options` は正規化テーブルで管理する。
+- 書き込み競合は `version` カラムによる optimistic locking で判定する。
+- 競合時は自動上書きせず、現状どおりエラー表示と再読み込み導線を表示する。
+- 一覧取得、競合判定、認可、整合性の責務はすべてサーバ API 側が持つ。
 
 ### 2.3. タスク管理
 
 - **タスクの構成要素:**
   - **必須:** タイトル
-  - **任意:** 備考, 期限, 優先度, プロジェクト, リマインダー, タグ
+  - **任意:** 備考, 期限, 優先度, プロジェクト, リマインダー, タグ, 添付ファイル, コメント
 - **状態:** 「未完了(todo)」と「完了(done)」の2状態のみで管理する。
 - **優先度:** 0から9までの10段階。非必須項目とし、アプリケーション側では数値の大小以外の意味は持たせない。
 - **日付:** 「期限」のみとし、「開始日」のような概念は設けない。
 - **デフォルトの並び順:** 期限順。
+- 1つのタスクには複数のファイルを添付できる。
+- タスクにはコメントを複数追記できる。
+- コメントは追記時刻とメッセージを保持する。
+- 1つのコメントには複数のファイルを添付できる。
+- コメントはタスク詳細上で記入時刻順に表示する。
+- コメント添付はコメント表示欄の右側に 1 行 1 ファイルで表示する。
+- コメント添付が画像の場合は、メッセージに続けてサムネイル表示する。
+- コメントは編集のみ許可し、削除は許可しない。
+- 添付ファイルの最大サイズは 100MB とする。
+- 許可する添付種別は `pdf`, `jpg`, `tif`, `png`, `txt`, `md`, `doc`, `xls`, `ppt`, `ps1`, `psm`, `py` とする。
+- 1 task あたり、および 1 comment あたりの添付数上限はストレージ容量上限までとする。
+- 添付ファイルはファイル本体を外部ストレージに置き、タスク側ではメタデータと保存先キーを保持する前提で設計する。
 - 完了タスクは未完了タスクとは別セクションに分け、通常表示では視界から排除しやすくする。
 - タスクを完了にした際は、「完了」固定プロジェクトへ移動して無期限保存する。
 - 完了タスクを `Reopen` した際は、`インボックス` へ移動して未完了状態へ戻す。
@@ -145,143 +194,168 @@
 - 将来的な外部公開API追加を見据え、APIトークン認証を想定する。
 - Web UI 内部用のAPIはサーバAPI型とする。
   - 一覧取得、詳細取得、更新前チェックを含むデータアクセスはサーバAPI経由で実行する。
-  - ブラウザから Google Drive API を直接呼び出してデータ整合性を判断しない。
-  - Google Drive への実アクセス、最終更新時刻の比較、競合判定、保存確定はサーバAPI側で一元管理する。
+  - ブラウザから DB やオブジェクトストレージを直接操作しない。
+  - Neon への query、競合判定、認可、保存確定はサーバAPI側で一元管理する。
+  - 添付ファイル本体のアップロード権限もサーバAPI側で制御する。
 
 ## 4. データモデル
 
-### 4.1. Google Drive上のファイル構成
+### 4.1. Neon 上の主要テーブル
 
 ```text
-tag.json
-project.json
-view.json
-task-[inbox-id].json
-task-[project-id].json
-task-[project-id].json
+users
+projects
+tags
+views
+view_filters
+view_filter_projects
+view_filter_tags
+view_sorts
+view_display_options
+tasks
+task_tags
+task_attachments
+task_comments
+task_comment_attachments
+reminders
 ```
 
-### 4.2. タグマスタ例
+### 4.2. `tags` テーブル行イメージ
 
 ```json
 {
-  "schema_version": 1,
+  "id": "tag_uuid_1",
+  "owner_user_id": "user_uuid_1",
+  "name": "重要",
+  "created_at": "2026-03-18T12:00:00Z",
   "updated_at": "2026-03-21T10:00:00Z",
+  "version": 3
+}
+```
+
+### 4.3. `projects` テーブル行イメージ
+
+```json
+{
+  "id": "proj_uuid_1",
+  "owner_user_id": "user_uuid_1",
+  "name": "仕事",
+  "color": "#ff8080",
+  "parent_id": null,
+  "system": false,
+  "created_at": "2026-03-18T12:00:00Z",
+  "updated_at": "2026-03-21T10:00:00Z",
+  "version": 2
+}
+```
+
+### 4.4. `tasks` 集約イメージ
+
+```json
+{
+  "task": {
+    "id": "task_uuid_1",
+    "owner_user_id": "user_uuid_1",
+    "project_id": "proj_uuid_1",
+    "title": "仕様書を更新する",
+    "description": "ヒアリング内容を元に更新する",
+    "due_date": "2026-03-20T10:00:00Z",
+    "priority": 7,
+    "status": "todo",
+    "created_at": "2026-03-18T12:00:00Z",
+    "updated_at": "2026-03-21T10:00:00Z",
+    "completed_at": null,
+    "version": 4
+  },
   "tags": [
     {
-      "id": "tag_uuid_1",
-      "name": "重要",
-      "created_at": "2026-03-18T12:00:00Z"
+      "tag_id": "tag_uuid_1"
     }
-  ]
+  ],
+  "attachments": [
+    {
+      "id": "task_file_uuid_1",
+      "file_name": "spec-v2.pdf",
+      "content_type": "application/pdf",
+      "byte_size": 245760,
+      "storage_key": "task/task_uuid_1/spec-v2.pdf",
+      "created_at": "2026-03-18T12:30:00Z"
+    }
+  ],
+  "comments": [
+    {
+      "id": "task_comment_uuid_1",
+      "message": "初稿を添付しました",
+      "created_at": "2026-03-18T13:00:00Z",
+      "attachments": [
+        {
+          "id": "task_comment_file_uuid_1",
+          "file_name": "review-notes.txt",
+          "content_type": "text/plain",
+          "byte_size": 2048,
+          "storage_key": "task-comments/task_comment_uuid_1/review-notes.txt",
+          "created_at": "2026-03-18T13:00:00Z"
+        }
+      ]
+    }
+  ],
+  "reminders": []
 }
 ```
 
-### 4.3. プロジェクトマスタ例
+### 4.5. `views` 集約イメージ
 
 ```json
 {
-  "schema_version": 1,
-  "updated_at": "2026-03-21T10:00:00Z",
-  "projects": [
-    {
-      "id": "proj_inbox",
-      "name": "インボックス",
-      "color": "#808080",
-      "parent_id": null,
-      "system": true,
-      "created_at": "2026-03-18T12:00:00Z"
-    },
-    {
-      "id": "proj_done",
-      "name": "完了",
-      "color": "#4caf50",
-      "parent_id": null,
-      "system": true,
-      "created_at": "2026-03-18T12:00:00Z"
-    },
-    {
-      "id": "proj_uuid_1",
-      "name": "仕事",
-      "color": "#ff8080",
-      "parent_id": null,
-      "system": false,
-      "created_at": "2026-03-18T12:00:00Z"
-    }
-  ]
-}
-```
-
-### 4.4. プロジェクト別タスクファイル例
-
-```json
-{
-  "schema_version": 1,
-  "project_id": "proj_uuid_1",
-  "updated_at": "2026-03-21T10:00:00Z",
-  "tasks": [
-    {
-      "id": "task_uuid_1",
-      "project_id": "proj_uuid_1",
-      "title": "仕様書を更新する",
-      "description": "ヒアリング内容を元に更新する",
-      "due_date": "2026-03-20T10:00:00Z",
-      "priority": 7,
-      "status": "todo",
-      "tag_ids": [
-        "tag_uuid_1"
-      ],
-      "reminders": [],
-      "created_at": "2026-03-18T12:00:00Z",
-      "completed_at": null
-    }
-  ]
-}
-```
-
-### 4.5. ビューマスタ例
-
-```json
-{
-  "schema_version": 1,
-  "updated_at": "2026-03-21T10:00:00Z",
-  "views": [
-    {
-      "id": "view_uuid_1",
-      "name": "今日",
-      "filters": {
-        "due": "today",
-        "project_ids": [],
-        "tag_ids": []
-      },
-      "sort": {
-        "field": "due_date",
-        "direction": "asc"
-      },
-      "display_options": {
-        "show_completed": false
-      },
-      "created_at": "2026-03-18T12:00:00Z",
-      "updated_at": "2026-03-21T10:00:00Z"
-    }
-  ]
+  "view": {
+    "id": "view_uuid_1",
+    "owner_user_id": "user_uuid_1",
+    "name": "今日",
+    "created_at": "2026-03-18T12:00:00Z",
+    "updated_at": "2026-03-21T10:00:00Z",
+    "version": 2
+  },
+  "filters": {
+    "due": "today",
+    "project_ids": [],
+    "tag_ids": []
+  },
+  "sort": {
+    "active_key": "due",
+    "project_direction": "asc",
+    "subject_direction": "asc",
+    "due_direction": "asc",
+    "priority_direction": "desc"
+  },
+  "display_options": {
+    "show_completed": false
+  }
 }
 ```
 
 ## 5. 要確認事項
 
-### 5.1. 分割保存方式で問題になりやすい点
+### 5.1. Neon 移行後に考慮が必要な点
 
-- タスクを別プロジェクトへ移動すると、移動元 `task-[project-id].json` と移動先 `task-[project-id].json` の2ファイル更新が必要になる。
-- プロジェクト削除時は、子プロジェクトの探索、該当タスクファイルの削除、タグ参照整合性の確認が必要になる。
-- 「完了」で別プロジェクトへ移す方式では、完了操作でも元ファイルと `task-[done-project-id].json` の2ファイル更新が発生する。
-- 保存ビューを持つ場合、ビュー自体を保存するファイルを別途持つ必要がある。
-- 親プロジェクト集約表示や「今日」「期限切れ」表示では、複数のタスクファイルを横断して読み込む必要がある。
-- Google Drive API の呼び出し回数が増えるため、画面表示速度やレート制限への配慮が必要になる。
+- タスク移動や完了処理は複数テーブル更新になるため、transaction で整合性を保つ必要がある。
+- プロジェクト削除時は、子プロジェクト、task、view 条件参照の cascade とアプリ側検証を整合させる必要がある。
+- 保存ビューを正規化テーブルで持つため、repository 層で aggregate を組み立てる責務が増える。
+- 親プロジェクト集約表示や「今日」「期限切れ」表示では、SQL の join と filter 条件設計が性能に直結する。
+- Preview ごとに DB branch を分けないため、migration 適用順序を明示管理する必要がある。
+- 添付ファイル本体は DB 外保存になるため、アップロード権限と配信方式の設計が必要になる。
 
 ### 5.2. 未確定事項
 
-- 現時点で大きな未確定事項はなし。
+- 添付ファイル本体の保存先をどこにするか
+- 添付ファイルのダウンロード URL を直リンクにするか、署名付き URL にするか
+
+### 5.3. Neon 移行時の実装推奨
+
+- 現行の repository / service 分離を活かすため、DB access は `postgres` + 手書き SQL を採用する。
+- `@neondatabase/serverless` は現時点では採用せず、Edge runtime や fetch ベース接続が必要になった場合のみ補助候補とする。
+- migration は SQL ファイルで管理し、DDL を明示的にレビューできる形を維持する。
+- migration 実行タイミングは `その他: リリース前の手動実行` を採用し、schema 変更を含むリリース前に担当者が共有環境へ明示的に適用する。
+- 理由は、branch-per-preview を使わない前提では schema 変更の自動適用が複数 preview に波及しやすく、CI / Vercel build / deploy 後ジョブより手動実行の方がトラブルを抑えやすいためである。
 
 ### 画面レイアウトに関連する要素
 
