@@ -8,6 +8,8 @@
     "dev:clean": "corepack pnpm run clean:next && next dev",
     "build": "next build",
     "start": "next start",
+    "db:check": "node --env-file=.env.local scripts/db-check.mjs",
+    "db:migrate": "node --env-file=.env.local scripts/db-migrate.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -17,6 +19,7 @@
     "date-fns": "^4.1.0",
     "next": "^15.0.0",
     "next-auth": "^4.24.13",
+    "postgres": "^3.4.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zod": "^3.23.8"
@@ -28,5 +31,5 @@
     "typescript": "^5.7.2",
     "vitest": "^4.1.0"
   },
-  "packageManager": "pnpm@10.6.5"
+  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319"
 }

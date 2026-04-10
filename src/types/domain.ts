@@ -2,6 +2,15 @@ export type EntityId = string;
 export type IsoDateString = string;
 export type Revision = string;
 
+export type User = {
+  id: EntityId;
+  email: string;
+  name: string | null;
+  image: string | null;
+  created_at: IsoDateString;
+  updated_at: IsoDateString;
+};
+
 export type TaskStatus = "todo" | "done";
 export type SortDirection = "asc" | "desc";
 export type TaskListSortKey = "project" | "subject" | "due" | "priority";

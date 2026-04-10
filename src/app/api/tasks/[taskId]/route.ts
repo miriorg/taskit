@@ -1,4 +1,4 @@
-import { TaskService } from "@/lib/services";
+import { PostgresTaskService } from "@/lib/services";
 import { ApiRouteError, toErrorResponse } from "@/lib/utils/api-error";
 import { getExpectedRevision } from "@/lib/utils/request-revision";
 
@@ -10,7 +10,7 @@ type RouteContext = {
 
 export async function GET(_request: Request, { params }: RouteContext) {
   try {
-    const taskService = new TaskService();
+    const taskService = new PostgresTaskService();
     const { taskId } = await params;
     const task = await taskService.get(taskId);
 
@@ -26,7 +26,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
-    const taskService = new TaskService();
+    const taskService = new PostgresTaskService();
     const { taskId } = await params;
     return Response.json(await taskService.update(taskId, await request.json(), { expectedRevision: getExpectedRevision(request) }));
   } catch (error) {
@@ -36,9 +36,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
 export async function DELETE(request: Request, { params }: RouteContext) {
   try {
-    const taskService = new TaskService();
+    const taskService = new PostgresTaskService();
     const { taskId } = await params;
-    return Response.json(await taskService.delete(taskId, { expectedRevision: getExpectedRevision(request) }));
+    return Response.json(await taskService.delete(taskId));
   } catch (error) {
     return toErrorResponse(error);
   }

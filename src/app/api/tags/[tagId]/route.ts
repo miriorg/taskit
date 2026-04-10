@@ -1,4 +1,4 @@
-import { TagService } from "@/lib/services";
+import { PostgresTagService } from "@/lib/services";
 import { ApiRouteError, toErrorResponse } from "@/lib/utils/api-error";
 import { getExpectedRevision } from "@/lib/utils/request-revision";
 
@@ -10,7 +10,7 @@ type RouteContext = {
 
 export async function GET(_request: Request, { params }: RouteContext) {
   try {
-    const tagService = new TagService();
+    const tagService = new PostgresTagService();
     const { tagId } = await params;
     const tag = await tagService.get(tagId);
 
@@ -26,7 +26,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
-    const tagService = new TagService();
+    const tagService = new PostgresTagService();
     const { tagId } = await params;
     return Response.json(await tagService.update(tagId, await request.json(), getExpectedRevision(request)));
   } catch (error) {
@@ -36,9 +36,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
 export async function DELETE(request: Request, { params }: RouteContext) {
   try {
-    const tagService = new TagService();
+    const tagService = new PostgresTagService();
     const { tagId } = await params;
-    return Response.json(await tagService.delete(tagId, getExpectedRevision(request)));
+    return Response.json(await tagService.delete(tagId));
   } catch (error) {
     return toErrorResponse(error);
   }

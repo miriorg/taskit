@@ -1,4 +1,4 @@
-import { ViewService } from "@/lib/services";
+import { PostgresViewService } from "@/lib/services";
 import { ApiRouteError, toErrorResponse } from "@/lib/utils/api-error";
 import { getExpectedRevision } from "@/lib/utils/request-revision";
 
@@ -10,7 +10,7 @@ type RouteContext = {
 
 export async function GET(_request: Request, { params }: RouteContext) {
   try {
-    const viewService = new ViewService();
+    const viewService = new PostgresViewService();
     const { viewId } = await params;
     const view = await viewService.get(viewId);
 
@@ -26,7 +26,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
-    const viewService = new ViewService();
+    const viewService = new PostgresViewService();
     const { viewId } = await params;
     return Response.json(await viewService.update(viewId, await request.json(), getExpectedRevision(request)));
   } catch (error) {
@@ -36,9 +36,9 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
 export async function DELETE(request: Request, { params }: RouteContext) {
   try {
-    const viewService = new ViewService();
+    const viewService = new PostgresViewService();
     const { viewId } = await params;
-    return Response.json(await viewService.delete(viewId, getExpectedRevision(request)));
+    return Response.json(await viewService.delete(viewId));
   } catch (error) {
     return toErrorResponse(error);
   }

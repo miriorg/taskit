@@ -1,10 +1,10 @@
-import { TaskService } from "@/lib/services";
+import { PostgresTaskService } from "@/lib/services";
 import { toErrorResponse } from "@/lib/utils/api-error";
 import { getExpectedRevision } from "@/lib/utils/request-revision";
 
 export async function GET(request: Request) {
   try {
-    const taskService = new TaskService();
+    const taskService = new PostgresTaskService();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get("projectId") ?? undefined;
     const includeProjectDescendants = searchParams.get("includeProjectDescendants") === "true";
@@ -17,8 +17,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const taskService = new TaskService();
-    return Response.json(await taskService.create(await request.json(), { expectedRevision: getExpectedRevision(request) }), { status: 201 });
+    const taskService = new PostgresTaskService();
+    return Response.json(await taskService.create(await request.json()), { status: 201 });
   } catch (error) {
     return toErrorResponse(error);
   }

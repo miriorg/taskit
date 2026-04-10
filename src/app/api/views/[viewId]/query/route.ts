@@ -1,4 +1,4 @@
-import { ViewService } from "@/lib/services";
+import { PostgresViewService } from "@/lib/services";
 import { toErrorResponse } from "@/lib/utils/api-error";
 
 type RouteContext = {
@@ -9,7 +9,7 @@ type RouteContext = {
 
 export async function POST(_request: Request, { params }: RouteContext) {
   try {
-    const viewService = new ViewService();
+    const viewService = new PostgresViewService();
     const { viewId } = await params;
     const requestBody = await _request.text();
     const payload = requestBody ? (JSON.parse(requestBody) as { query?: string }) : undefined;

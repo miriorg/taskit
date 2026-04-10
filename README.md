@@ -1,13 +1,14 @@
 # taskit
 
-Google Drive `appDataFolder` に JSON を保存する、Next.js ベースのタスク管理アプリです。Google ログイン後に `project.json`、`tag.json`、`view.json`、`task-<project-id>.json` を初期化し、`Inbox / Project / View / 完了` の各画面で CRUD を行います。
+Neon Postgres と Vercel Blob を使う、Next.js ベースのタスク管理アプリです。Google ログイン後に `users` を解決し、`Inbox / Project / View / 完了` の各画面で CRUD を行います。
 
 ## Stack
 
 - Next.js App Router
 - TypeScript
 - Auth.js / Google OAuth
-- Google Drive API (`appDataFolder`)
+- Neon Postgres
+- Vercel Blob
 - Vitest
 - Vercel
 
@@ -20,6 +21,8 @@ NEXTAUTH_SECRET=generated-random-secret
 NEXTAUTH_URL=http://localhost:3000
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
+DATABASE_URL=your-neon-pooled-url
+DATABASE_URL_UNPOOLED=your-neon-direct-url
 ```
 
 `NEXTAUTH_SECRET` の生成例:
@@ -40,7 +43,6 @@ Google Cloud Console で以下を設定します。
   - 本番: `https://mtaskit.vercel.app`
 - OAuth consent screen は `External`
 - ログイン確認に使う Google アカウントを Test users に追加
-- Google Drive API を有効化
 
 ## Install and run
 
@@ -118,12 +120,12 @@ C:\Users\miri\AppData\Roaming\npm\vercel.cmd deploy --prod --yes
 実装済みの中心機能:
 
 - Google ログイン
-- Google Drive への bootstrap / CRUD
+- Neon Postgres への bootstrap / CRUD
 - Projects / Tags / Tasks / Views の基本操作
 - 階層プロジェクト作成と親変更
 - 保存ビューの作成・編集
 - 検索
-- 競合時の revision チェック
+- 競合時の version チェック
 - 完了タスクの `完了` プロジェクト管理
 
 MVP 後に回している項目:
