@@ -345,7 +345,7 @@ select {
 
 .inline-tag-picker {
   position: fixed;
-  z-index: 30;
+  z-index: 1100;
   width: min(360px, calc(100vw - 24px));
   padding: 2px;
   border: 2px solid rgba(23, 48, 73, 0.3);
