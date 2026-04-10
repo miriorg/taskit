@@ -635,9 +635,28 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [shortcutPrefix, setShortcutPrefix] = useState<string | null>(null);
   const [expandedViewProjectIds, setExpandedViewProjectIds] = useState<string[]>([]);
   const createTaskInputRef = useRef<HTMLInputElement | null>(null);
+  const editTaskDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const createProjectInputRef = useRef<HTMLInputElement | null>(null);
+  const editProjectDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const createTagInputRef = useRef<HTMLInputElement | null>(null);
+  const editTagDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const createViewInputRef = useRef<HTMLInputElement | null>(null);
+  const editViewDescriptionRef = useRef<HTMLInputElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const inlineTagSourceRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const pendingActionKeysRef = useRef(new Set<string>());
+
+  const focusDialogField = (field: HTMLInputElement | HTMLTextAreaElement | null, select = false) => {
+    if (!field) {
+      return;
+    }
+
+    field.focus();
+
+    if (select && "select" in field) {
+      field.select();
+    }
+  };
 
   const withExpectedRevision = (revisionKey: keyof FileRevisionMap | `task:${string}` | undefined, init?: RequestInit): RequestInit => {
     const headers = new Headers(init?.headers);
@@ -1432,9 +1451,72 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       return;
     }
 
-    createTaskInputRef.current?.focus();
-    createTaskInputRef.current?.select();
+    const frame = window.requestAnimationFrame(() => focusDialogField(createTaskInputRef.current, true));
+    return () => window.cancelAnimationFrame(frame);
   }, [isTaskCreateDialogOpen]);
+
+  useEffect(() => {
+    if (!selectedTask) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => focusDialogField(editTaskDescriptionRef.current));
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedTask?.id]);
+
+  useEffect(() => {
+    if (!isProjectCreateDialogOpen) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => focusDialogField(createProjectInputRef.current, true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [isProjectCreateDialogOpen]);
+
+  useEffect(() => {
+    if (!editingProjectId) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => focusDialogField(editProjectDescriptionRef.current));
+    return () => window.cancelAnimationFrame(frame);
+  }, [editingProjectId]);
+
+  useEffect(() => {
+    if (!isTagCreateDialogOpen) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => focusDialogField(createTagInputRef.current, true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [isTagCreateDialogOpen]);
+
+  useEffect(() => {
+    if (!editingTagId) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => focusDialogField(editTagDescriptionRef.current));
+    return () => window.cancelAnimationFrame(frame);
+  }, [editingTagId]);
+
+  useEffect(() => {
+    if (!isViewCreateDialogOpen) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => focusDialogField(createViewInputRef.current, true));
+    return () => window.cancelAnimationFrame(frame);
+  }, [isViewCreateDialogOpen]);
+
+  useEffect(() => {
+    if (!editingViewId) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => focusDialogField(editViewDescriptionRef.current));
+    return () => window.cancelAnimationFrame(frame);
+  }, [editingViewId]);
 
   useEffect(() => {
     if (!shortcutPrefix) {
@@ -2257,6 +2339,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               />
               <textarea
                 rows={4}
+                ref={editTaskDescriptionRef}
                 value={selectedTask.description ?? ""}
                 onChange={(event) =>
                   handleInlineTagInput(event.currentTarget, "edit", (value) =>
@@ -2379,7 +2462,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 }, "project");
               }}
             >
-              <input required value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="New project" />
+              <input ref={createProjectInputRef} required value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="New project" />
               <textarea
                 rows={3}
                 value={projectDescription}
@@ -2462,7 +2545,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 }, "tag");
               }}
             >
-              <input required value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="New tag" />
+              <input ref={createTagInputRef} required value={tagName} onChange={(event) => setTagName(event.target.value)} placeholder="New tag" />
               <textarea
                 rows={3}
                 value={tagDescription}
@@ -2536,6 +2619,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               <input value={tagDialogName} onChange={(event) => setTagDialogName(event.target.value)} placeholder="Tag name" />
               <textarea
                 rows={3}
+                ref={editTagDescriptionRef}
                 value={tagDialogDescription}
                 onChange={(event) => setTagDialogDescription(event.target.value)}
                 placeholder="Tag description"
@@ -2626,6 +2710,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               <input value={projectDialogName} onChange={(event) => setProjectDialogName(event.target.value)} />
               <textarea
                 rows={3}
+                ref={editProjectDescriptionRef}
                 value={projectDialogDescription}
                 onChange={(event) => setProjectDialogDescription(event.target.value)}
                 placeholder="Project description"
@@ -2778,6 +2863,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
             >
               <input
                 required
+                ref={createViewInputRef}
                 value={viewDraft.name}
                 onChange={(event) => setViewDraft((current) => ({ ...current, name: event.target.value }))}
                 placeholder="View name"
@@ -2934,6 +3020,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 placeholder="View name"
               />
               <input
+                ref={editViewDescriptionRef}
                 value={viewDraft.filters.query}
                 onChange={(event) =>
                   setViewDraft((current) => ({
