@@ -1,9 +1,9 @@
-import { TaskService } from "@/lib/services";
+import { PostgresTaskService } from "@/lib/services";
 import { toErrorResponse } from "@/lib/utils/api-error";
 
 export async function GET(request: Request) {
   try {
-    const taskService = new TaskService();
+    const taskService = new PostgresTaskService();
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("query") ?? undefined;
     const projectId = searchParams.get("projectId") ?? undefined;

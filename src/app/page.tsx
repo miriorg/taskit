@@ -2,13 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getOptionalSession } from "@/lib/auth/session";
-import { BootstrapService } from "@/lib/services";
+import { PostgresBootstrapService } from "@/lib/services";
 
 export default async function HomePage() {
   const session = await getOptionalSession();
 
   if (session) {
-    const bootstrapService = new BootstrapService();
+    const bootstrapService = new PostgresBootstrapService();
     await bootstrapService.execute();
     redirect("/inbox");
   }
