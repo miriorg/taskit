@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 
 import { TagCloud } from "@/components/tag";
 import { DEFAULT_TASK_LIST_SORT, sortTaskListItems, toggleTaskListSort } from "@/lib/task-list-sort";
-import { DONE_PROJECT_ID, INBOX_PROJECT_ID } from "@/lib/utils/system-projects";
+import { findDoneProjectId, findInboxProjectId } from "@/lib/utils/system-projects";
 import type {
   FileRevisionMap,
   Project,
@@ -682,32 +682,32 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     });
 
   const refresh = async () => {
-    const resolvedProjectId = projectId ?? INBOX_PROJECT_ID;
     const trimmedSearchQuery = searchQuery.trim();
     const includeProjectDescendants = Boolean(projectId) && includeChildProjects;
-    const taskRequest = viewId
-      ? readJson<TaskListResponse>(`/api/views/${viewId}/query`, {
+    const [projects, tags, views] = await Promise.all([
+      readJson<ProjectListResponse>("/api/projects"),
+      readJson<TagListResponse>("/api/tags"),
+      readJson<ViewListResponse>("/api/views"),
+    ]);
+    const resolvedInboxProjectId = findInboxProjectId(projects.projects);
+    const resolvedProjectId = projectId ?? resolvedInboxProjectId ?? undefined;
+    const tasks = viewId
+      ? await readJson<TaskListResponse>(`/api/views/${viewId}/query`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: trimmedSearchQuery || undefined }),
         })
       : trimmedSearchQuery
-        ? readJson<TaskListResponse>(`/api/search?${new URLSearchParams({
+        ? await readJson<TaskListResponse>(`/api/search?${new URLSearchParams({
+            ...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
             query: trimmedSearchQuery,
-            projectId: resolvedProjectId,
             includeProjectDescendants: includeProjectDescendants ? "true" : "false",
             includeCompleted: "true",
           }).toString()}`)
-        : readJson<TaskListResponse>(`/api/tasks?${new URLSearchParams({
-            projectId: resolvedProjectId,
+        : await readJson<TaskListResponse>(`/api/tasks?${new URLSearchParams({
+            ...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
             includeProjectDescendants: includeProjectDescendants ? "true" : "false",
           }).toString()}`);
-    const [projects, tags, views, tasks] = await Promise.all([
-      readJson<ProjectListResponse>("/api/projects"),
-      readJson<TagListResponse>("/api/tags"),
-      readJson<ViewListResponse>("/api/views"),
-      taskRequest,
-    ]);
     const currentView = viewId ? views.views.find((view) => view.id === viewId) ?? null : null;
 
     setWorkspace({
@@ -952,7 +952,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       return true;
     }
 
-    const resolvedProjectId = projectId ?? INBOX_PROJECT_ID;
+    const resolvedProjectId = projectId ?? inboxProjectId;
 
     if (projectId) {
       if (includeChildProjects) {
@@ -962,7 +962,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
       return task.project_id === projectId;
     }
 
-    return task.project_id === resolvedProjectId;
+    return resolvedProjectId ? task.project_id === resolvedProjectId : false;
   };
 
   const applyTaskMutationToWorkspace = (task: Task, revisions: FileRevisionMap) => {
@@ -1311,15 +1311,17 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     : projectId
       ? workspace.projects.find((project) => project.id === projectId)?.name ?? "Project"
       : "Inbox";
-  const isDoneProjectPage = projectId === DONE_PROJECT_ID;
+  const inboxProjectId = findInboxProjectId(workspace.projects);
+  const doneProjectId = findDoneProjectId(workspace.projects);
+  const isDoneProjectPage = Boolean(doneProjectId) && projectId === doneProjectId;
   const currentProject = projectId ? workspace.projects.find((project) => project.id === projectId) ?? null : null;
   const descendantIds = currentProject ? collectDescendantIds(workspace.projects, currentProject.id) : [];
   const availableParentProjects = workspace.projects
-    .filter((project) => project.id !== INBOX_PROJECT_ID && project.id !== DONE_PROJECT_ID)
+    .filter((project) => project.id !== inboxProjectId && project.id !== doneProjectId)
     .filter((project) => project.id !== currentProject?.id)
     .filter((project) => !descendantIds.includes(project.id))
     .sort((left, right) => left.name.localeCompare(right.name));
-  const visibleProjects = getIndentedProjects(workspace.projects).filter((project) => project.id !== INBOX_PROJECT_ID);
+  const visibleProjects = getIndentedProjects(workspace.projects).filter((project) => project.id !== inboxProjectId);
   const shouldShowCompletedSection = !projectId;
   const visibleTasks = isDoneProjectPage ? workspace.tasks.completedItems : workspace.tasks.todoItems;
   const sortedVisibleTasks = sortTaskListItems(visibleTasks, taskListSort);
@@ -1346,7 +1348,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const editingView = editingViewId ? workspace.views.find((view) => view.id === editingViewId) ?? null : null;
   const editingProjectDescendantIds = editingProject ? collectDescendantIds(workspace.projects, editingProject.id) : [];
   const dialogParentProjects = workspace.projects
-    .filter((project) => project.id !== INBOX_PROJECT_ID && project.id !== DONE_PROJECT_ID)
+    .filter((project) => project.id !== inboxProjectId && project.id !== doneProjectId)
     .filter((project) => project.id !== editingProject?.id)
     .filter((project) => !editingProjectDescendantIds.includes(project.id))
     .sort((left, right) => left.name.localeCompare(right.name));
@@ -1553,7 +1555,9 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
         if (event.key === "d") {
           event.preventDefault();
           setShortcutPrefix(null);
-          router.push(`/project/${DONE_PROJECT_ID}`);
+          if (doneProjectId) {
+            router.push(`/project/${doneProjectId}`);
+          }
           return;
         }
       }
@@ -2211,15 +2215,20 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
               onSubmit={(event) => {
                 event.preventDefault();
                 runAction("task:create", "Creating task...", async () => {
+                  const createTaskRevisionKey = projectId
+                    ? `task:${projectId}` as const
+                    : inboxProjectId
+                      ? `task:${inboxProjectId}` as const
+                      : undefined;
                   const response = await readJson<TaskMutationResponse>("/api/tasks", {
-                    ...withJsonRevision(`task:${projectId ?? INBOX_PROJECT_ID}`, { method: "POST" }),
+                    ...withJsonRevision(createTaskRevisionKey, { method: "POST" }),
                     body: JSON.stringify({
                       title: taskTitle,
                       description: taskDescription.trim() || null,
                       due_date: fromDateTimeLocal(taskDueDate),
                       priority: taskPriority === "" ? null : Number(taskPriority),
                       tag_ids: taskTagIds,
-                      project_id: projectId ?? INBOX_PROJECT_ID,
+                      project_id: projectId ?? inboxProjectId,
                     }),
                   });
                   resetCreateTaskForm();

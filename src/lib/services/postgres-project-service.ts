@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 
 import { requireAppUser } from "@/lib/auth/app-user";
 import { PostgresProjectRepository, type ProjectRecord } from "@/lib/repositories/postgres-project-repository";
-import { SYSTEM_PROJECT_IDS } from "@/lib/utils/system-projects";
 import { createProjectInputSchema, updateProjectInputSchema } from "@/lib/validators";
 import type { CreateProjectInput, Project, ProjectDeleteResponse, ProjectListResponse, ProjectMutationResponse, UpdateProjectInput, User } from "@/types";
 
@@ -167,15 +166,16 @@ export class PostgresProjectService {
   }
 
   async delete(projectId: string): Promise<ProjectDeleteResponse> {
-    if (SYSTEM_PROJECT_IDS.includes(projectId as (typeof SYSTEM_PROJECT_IDS)[number])) {
-      throw new Error("System project cannot be deleted");
-    }
-
     const user = await resolveOwner(this.appUserResolver);
     const existingProjects = await this.projectRepository.listByOwner(user.id);
+    const project = existingProjects.find((candidate) => candidate.id === projectId);
 
-    if (!existingProjects.some((project) => project.id === projectId)) {
+    if (!project) {
       throw new Error("Project not found");
+    }
+
+    if (project.system) {
+      throw new Error("System project cannot be deleted");
     }
 
     const deletedProjectIds = collectDescendantProjectIds(existingProjects.map(toProject), projectId);
