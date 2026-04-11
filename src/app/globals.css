@@ -693,10 +693,14 @@ select {
 .color-control-row {
   display: flex;
   gap: 12px;
-  align-items: end;
+  align-items: center;
 }
 
 .color-control-row__hex {
+  flex: 1;
+}
+
+.color-control-row__hex-input {
   flex: 1;
 }
 

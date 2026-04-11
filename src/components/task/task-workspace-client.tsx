@@ -2494,23 +2494,23 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 onChange={(event) => setProjectDescription(event.target.value)}
                 placeholder="Project description"
               />
-              <label className="color-picker-button" style={{ backgroundColor: projectColor }}>
-                <span className="sr-only">Choose project color</span>
-                <img alt="" aria-hidden="true" className="task-icon" src="/icons/palette-monochrome.svg" />
+              <div className="color-control-row">
+                <label className="color-picker-button" style={{ backgroundColor: projectColor }}>
+                  <span className="sr-only">Choose project color</span>
+                  <img alt="" aria-hidden="true" className="task-icon" src="/icons/palette-monochrome.svg" />
+                  <input
+                    className="color-picker-button__input"
+                    value={projectColor}
+                    onChange={(event) => {
+                      const nextColor = event.target.value.toUpperCase();
+                      setProjectColor(nextColor);
+                      setProjectColorHexDraft(toHexDraft(nextColor));
+                    }}
+                    type="color"
+                  />
+                </label>
                 <input
-                  className="color-picker-button__input"
-                  value={projectColor}
-                  onChange={(event) => {
-                    const nextColor = event.target.value.toUpperCase();
-                    setProjectColor(nextColor);
-                    setProjectColorHexDraft(toHexDraft(nextColor));
-                  }}
-                  type="color"
-                />
-              </label>
-              <label className="stack">
-                <span>HEX</span>
-                <input
+                  className="color-control-row__hex-input"
                   inputMode="text"
                   maxLength={6}
                   placeholder="RRGGBB"
@@ -2525,7 +2525,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                     }
                   }}
                 />
-              </label>
+              </div>
               <div className="modal-actions">
                 <div className="modal-actions__end">
                   <button
@@ -2777,24 +2777,22 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 />
               </label>
               <div className="color-control-row">
-                <label className="stack color-control-row__hex">
-                  <span>HEX</span>
-                  <input
-                    inputMode="text"
-                    maxLength={6}
-                    placeholder="RRGGBB"
-                    value={projectDialogColorHexDraft}
-                    onBlur={() => setProjectDialogColorHexDraft(toHexDraft(projectDialogColor))}
-                    onChange={(event) => {
-                      const nextDraft = normalizeHexDraft(event.target.value);
-                      setProjectDialogColorHexDraft(nextDraft);
+                <input
+                  className="color-control-row__hex-input"
+                  inputMode="text"
+                  maxLength={6}
+                  placeholder="RRGGBB"
+                  value={projectDialogColorHexDraft}
+                  onBlur={() => setProjectDialogColorHexDraft(toHexDraft(projectDialogColor))}
+                  onChange={(event) => {
+                    const nextDraft = normalizeHexDraft(event.target.value);
+                    setProjectDialogColorHexDraft(nextDraft);
 
-                      if (isCompleteHexDraft(nextDraft)) {
-                        setProjectDialogColor(`#${nextDraft}`);
-                      }
-                    }}
-                  />
-                </label>
+                    if (isCompleteHexDraft(nextDraft)) {
+                      setProjectDialogColor(`#${nextDraft}`);
+                    }
+                  }}
+                />
                 <button
                   className="button-secondary"
                   disabled={!selectedEditParentProject}
