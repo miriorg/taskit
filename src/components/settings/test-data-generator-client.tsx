@@ -19,6 +19,7 @@ export function TestDataGeneratorClient() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [projectId, setProjectId] = useState("");
+  const [projectAssignment, setProjectAssignment] = useState<"fixed" | "children_random" | "all_random">("fixed");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [useRandomTags, setUseRandomTags] = useState(true);
   const [count, setCount] = useState("5");
@@ -48,7 +49,7 @@ export function TestDataGeneratorClient() {
     <main className="settings-page">
       <section className="panel settings-panel">
         <h1>Test Data Generator</h1>
-        <p>既存プロジェクトにランダムなテストタスクをまとめて追加します。Title は同じプロジェクト内で重複しません。</p>
+        <p>テストタスクをまとめて追加します。Title は同じ Project 内で重複しません。</p>
         <form
           className="stack"
           onSubmit={(event) => {
@@ -63,6 +64,7 @@ export function TestDataGeneratorClient() {
                     },
                     body: JSON.stringify({
                       project_id: projectId,
+                      project_assignment: projectAssignment,
                       tag_ids: selectedTagIds,
                       count: Number(count),
                       use_random_tags: useRandomTags,
@@ -77,13 +79,27 @@ export function TestDataGeneratorClient() {
           }}
         >
           <label className="stack">
-            <span>Project</span>
+            <span>基準 Project</span>
             <select value={projectId} onChange={(event) => setProjectId(event.target.value)}>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
                 </option>
               ))}
+            </select>
+          </label>
+
+          <label className="stack">
+            <span>追加先</span>
+            <select
+              value={projectAssignment}
+              onChange={(event) =>
+                setProjectAssignment(event.target.value as "fixed" | "children_random" | "all_random")
+              }
+            >
+              <option value="fixed">この Project</option>
+              <option value="children_random">子 Project からランダム</option>
+              <option value="all_random">全 Project からランダム</option>
             </select>
           </label>
 

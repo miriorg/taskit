@@ -67,4 +67,5 @@ export const generateTestTasksInputSchema = z.object({
   tag_ids: z.array(z.string().min(1)).max(20),
   count: z.number().int().min(1).max(100),
   use_random_tags: z.boolean().optional(),
+  project_assignment: z.enum(["fixed", "children_random", "all_random"]).optional(),
 });

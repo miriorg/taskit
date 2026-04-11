@@ -61,4 +61,5 @@ export type GenerateTestTasksInput = {
   tag_ids: string[];
   count: number;
   use_random_tags?: boolean;
+  project_assignment?: "fixed" | "children_random" | "all_random";
 };

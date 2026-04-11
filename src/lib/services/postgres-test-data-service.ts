@@ -7,6 +7,8 @@ import { PostgresTaskRepository } from "@/lib/repositories/postgres-task-reposit
 import { generateTestTasksInputSchema } from "@/lib/validators";
 import type { GenerateTestTasksInput, Task, User } from "@/types";
 
+import { collectDescendantProjectIds } from "./project-service";
+
 const TITLE_PREFIXES = [
   "Review",
   "Draft",
@@ -76,6 +78,18 @@ function pickTagIds(tagIds: string[]): string[] {
   return shuffled.slice(0, count);
 }
 
+function buildProjectTitleBuckets(tasks: Task[]): Map<string, Set<string>> {
+  const buckets = new Map<string, Set<string>>();
+
+  for (const task of tasks) {
+    const titles = buckets.get(task.project_id) ?? new Set<string>();
+    titles.add(task.title);
+    buckets.set(task.project_id, titles);
+  }
+
+  return buckets;
+}
+
 function buildTask(projectId: string, title: string, tagIds: string[], createdAt: string): Task {
   const dueOffsetDays = Math.floor(Math.random() * 21);
   const dueOffsetHours = Math.floor(Math.random() * 10);
@@ -113,15 +127,32 @@ export class PostgresTestDataService {
   async generate(input: GenerateTestTasksInput): Promise<{ tasks: Task[]; projectId: string }> {
     const payload = generateTestTasksInputSchema.parse(input);
     const user = await resolveOwner(this.appUserResolver);
-    const [projects, tags, existingTasks] = await Promise.all([
+    const [projects, tags] = await Promise.all([
       this.projectRepository.listByOwner(user.id),
       this.tagRepository.listByOwner(user.id),
-      this.taskRepository.listByProjectIds(user.id, [payload.project_id]),
     ]);
 
     if (!projects.some((project) => project.id === payload.project_id)) {
       throw new Error("Project not found");
     }
+
+    const availableProjects = projects.filter((project) => !project.system);
+    const assignment = payload.project_assignment ?? "fixed";
+    let candidateProjectIds: string[];
+
+    if (assignment === "all_random") {
+      candidateProjectIds = availableProjects.map((project) => project.id);
+    } else if (assignment === "children_random") {
+      candidateProjectIds = collectDescendantProjectIds(projects, payload.project_id).filter((projectId) => projectId !== payload.project_id);
+    } else {
+      candidateProjectIds = [payload.project_id];
+    }
+
+    if (candidateProjectIds.length === 0) {
+      throw new Error(assignment === "children_random" ? "Child projects not found" : "Project not found");
+    }
+
+    const existingTasks = await this.taskRepository.listByProjectIds(user.id, candidateProjectIds);
 
     const knownTagIds = new Set(tags.map((tag) => tag.id));
 
@@ -129,17 +160,21 @@ export class PostgresTestDataService {
       throw new Error("Tag not found");
     }
 
-    const existingTitles = new Set(existingTasks.map((task) => task.title));
+    const existingTitlesByProject = buildProjectTitleBuckets(existingTasks);
     const now = new Date().toISOString();
     const randomTagPool = payload.tag_ids.length > 0 ? payload.tag_ids : tags.map((tag) => tag.id);
-    const tasks = Array.from({ length: payload.count }, (_, index) =>
-      buildTask(
-        payload.project_id,
+    const tasks = Array.from({ length: payload.count }, (_, index) => {
+      const resolvedProjectId = assignment === "fixed" ? payload.project_id : randomItem(candidateProjectIds);
+      const existingTitles = existingTitlesByProject.get(resolvedProjectId) ?? new Set<string>();
+      existingTitlesByProject.set(resolvedProjectId, existingTitles);
+
+      return buildTask(
+        resolvedProjectId,
         buildUniqueTitle(existingTitles, index),
         payload.use_random_tags ? pickTagIds(randomTagPool) : payload.tag_ids,
         now,
-      ),
-    );
+      );
+    });
 
     for (const task of tasks) {
       await this.taskRepository.create({
