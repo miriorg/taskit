@@ -30,7 +30,7 @@ export function createInitialProjectMasterFile(now = nowIsoString()): ProjectMas
         id: DONE_PROJECT_ID,
         name: "完了",
         description: "",
-        color: "#4caf50",
+        color: "#303080",
         parent_id: null,
         system: true,
         created_at: now,

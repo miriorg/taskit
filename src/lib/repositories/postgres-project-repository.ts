@@ -76,7 +76,7 @@ function createSystemProjectSeeds(ownerUserId: string, now: string): Omit<Create
       owner_user_id: ownerUserId,
       name: "完了",
       description: "",
-      color: "#4caf50",
+      color: "#303080",
       parent_id: null,
       system: true,
       created_at: now,

@@ -289,7 +289,7 @@ describe("TaskService.update", () => {
             id: DONE_PROJECT_ID,
             name: "Done",
             description: "",
-            color: "#4caf50",
+            color: "#303080",
             parent_id: null,
             system: true,
             created_at: "2026-03-22T00:00:00.000Z",

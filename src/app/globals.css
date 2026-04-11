@@ -33,7 +33,7 @@ select {
 
 .workspace {
   display: grid;
-  grid-template-columns: 320px 1fr 340px;
+  grid-template-columns: 320px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -49,13 +49,15 @@ select {
 
 .workspace__sidebar {
   display: grid;
+  align-content: start;
   gap: 16px;
-  padding: 20px;
+  padding: 20px 0;
   background: linear-gradient(180deg, #173049 0%, #264b68 100%);
   color: #eef6fb;
 }
 
 .workspace__sidebar .panel {
+  width: 100%;
   color: #1b2530;
 }
 
@@ -68,6 +70,7 @@ select {
   align-content: start;
   gap: 16px;
   padding: 20px;
+  min-width: 0;
 }
 
 .workspace__detail {
@@ -692,8 +695,9 @@ select {
 
 .color-control-row {
   display: flex;
-  gap: 12px;
   align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
 }
 
 .color-control-row__hex {
@@ -702,6 +706,12 @@ select {
 
 .color-control-row__hex-input {
   flex: 1;
+  min-width: 0;
+}
+
+.color-control-row__inherit-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .section-caption {
@@ -939,7 +949,7 @@ button:disabled {
 
 @media (max-width: 1100px) {
   .workspace {
-    grid-template-columns: 280px 1fr;
+    grid-template-columns: 280px minmax(0, 1fr);
   }
 
   .workspace__detail {

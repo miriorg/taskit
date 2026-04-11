@@ -2762,21 +2762,21 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 onChange={(event) => setProjectDialogDescription(event.target.value)}
                 placeholder="Project description"
               />
-              <label className="color-picker-button" style={{ backgroundColor: projectDialogColor }}>
-                <span className="sr-only">Choose project color</span>
-                <img alt="" aria-hidden="true" className="task-icon" src="/icons/palette-monochrome.svg" />
-                <input
-                  className="color-picker-button__input"
-                  value={projectDialogColor}
-                  onChange={(event) => {
-                    const nextColor = event.target.value.toUpperCase();
-                    setProjectDialogColor(nextColor);
-                    setProjectDialogColorHexDraft(toHexDraft(nextColor));
-                  }}
-                  type="color"
-                />
-              </label>
               <div className="color-control-row">
+                <label className="color-picker-button" style={{ backgroundColor: projectDialogColor }}>
+                  <span className="sr-only">Choose project color</span>
+                  <img alt="" aria-hidden="true" className="task-icon" src="/icons/palette-monochrome.svg" />
+                  <input
+                    className="color-picker-button__input"
+                    value={projectDialogColor}
+                    onChange={(event) => {
+                      const nextColor = event.target.value.toUpperCase();
+                      setProjectDialogColor(nextColor);
+                      setProjectDialogColorHexDraft(toHexDraft(nextColor));
+                    }}
+                    type="color"
+                  />
+                </label>
                 <input
                   className="color-control-row__hex-input"
                   inputMode="text"
@@ -2794,7 +2794,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                   }}
                 />
                 <button
-                  className="button-secondary"
+                  className="button-secondary color-control-row__inherit-button"
                   disabled={!selectedEditParentProject}
                   type="button"
                   onClick={() => {
