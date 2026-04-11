@@ -690,6 +690,16 @@ select {
   cursor: pointer;
 }
 
+.color-control-row {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+}
+
+.color-control-row__hex {
+  flex: 1;
+}
+
 .section-caption {
   margin: 0 0 12px;
   color: #466173;

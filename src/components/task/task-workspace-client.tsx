@@ -110,6 +110,18 @@ const compactDateFormatter = new Intl.DateTimeFormat(undefined, {
 
 const DEFAULT_PROJECT_COLOR = "#ffffff";
 
+function normalizeHexDraft(value: string): string {
+  return value.replace(/[^0-9a-f]/gi, "").slice(0, 6).toUpperCase();
+}
+
+function toHexDraft(value: string): string {
+  return value.replace(/^#/, "").toUpperCase();
+}
+
+function isCompleteHexDraft(value: string): boolean {
+  return /^[0-9A-F]{6}$/.test(value);
+}
+
 function createDefaultViewDraft(projectId?: string, sort: ViewSort = DEFAULT_TASK_LIST_SORT): ViewDraft {
   return {
     name: "",
@@ -603,6 +615,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [projectName, setProjectName] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
   const [projectColor, setProjectColor] = useState(DEFAULT_PROJECT_COLOR);
+  const [projectColorHexDraft, setProjectColorHexDraft] = useState(toHexDraft(DEFAULT_PROJECT_COLOR));
   const [tagName, setTagName] = useState("");
   const [tagDescription, setTagDescription] = useState("");
   const [viewDraft, setViewDraft] = useState<ViewDraft>(() => createDefaultViewDraft(projectId));
@@ -627,6 +640,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
   const [projectDialogName, setProjectDialogName] = useState("");
   const [projectDialogDescription, setProjectDialogDescription] = useState("");
   const [projectDialogColor, setProjectDialogColor] = useState(DEFAULT_PROJECT_COLOR);
+  const [projectDialogColorHexDraft, setProjectDialogColorHexDraft] = useState(toHexDraft(DEFAULT_PROJECT_COLOR));
   const [projectDialogParentId, setProjectDialogParentId] = useState("");
   const [isViewCreateDialogOpen, setIsViewCreateDialogOpen] = useState(false);
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
@@ -1352,11 +1366,15 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     .filter((project) => project.id !== editingProject?.id)
     .filter((project) => !editingProjectDescendantIds.includes(project.id))
     .sort((left, right) => left.name.localeCompare(right.name));
+  const selectedEditParentProject = projectDialogParentId
+    ? workspace.projects.find((project) => project.id === projectDialogParentId) ?? null
+    : null;
 
   const openProjectCreateDialog = () => {
     setProjectName("");
     setProjectDescription("");
     setProjectColor(DEFAULT_PROJECT_COLOR);
+    setProjectColorHexDraft(toHexDraft(DEFAULT_PROJECT_COLOR));
     setIsProjectCreateDialogOpen(true);
   };
 
@@ -1395,6 +1413,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
     setProjectDialogName(project.name);
     setProjectDialogDescription(project.description);
     setProjectDialogColor(project.color);
+    setProjectDialogColorHexDraft(toHexDraft(project.color));
     setProjectDialogParentId(project.parent_id ?? "");
     setSubprojectName("");
   };
@@ -2481,8 +2500,30 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 <input
                   className="color-picker-button__input"
                   value={projectColor}
-                  onChange={(event) => setProjectColor(event.target.value)}
+                  onChange={(event) => {
+                    const nextColor = event.target.value.toUpperCase();
+                    setProjectColor(nextColor);
+                    setProjectColorHexDraft(toHexDraft(nextColor));
+                  }}
                   type="color"
+                />
+              </label>
+              <label className="stack">
+                <span>HEX</span>
+                <input
+                  inputMode="text"
+                  maxLength={6}
+                  placeholder="RRGGBB"
+                  value={projectColorHexDraft}
+                  onBlur={() => setProjectColorHexDraft(toHexDraft(projectColor))}
+                  onChange={(event) => {
+                    const nextDraft = normalizeHexDraft(event.target.value);
+                    setProjectColorHexDraft(nextDraft);
+
+                    if (isCompleteHexDraft(nextDraft)) {
+                      setProjectColor(`#${nextDraft}`);
+                    }
+                  }}
                 />
               </label>
               <div className="modal-actions">
@@ -2727,10 +2768,49 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 <input
                   className="color-picker-button__input"
                   value={projectDialogColor}
-                  onChange={(event) => setProjectDialogColor(event.target.value)}
+                  onChange={(event) => {
+                    const nextColor = event.target.value.toUpperCase();
+                    setProjectDialogColor(nextColor);
+                    setProjectDialogColorHexDraft(toHexDraft(nextColor));
+                  }}
                   type="color"
                 />
               </label>
+              <div className="color-control-row">
+                <label className="stack color-control-row__hex">
+                  <span>HEX</span>
+                  <input
+                    inputMode="text"
+                    maxLength={6}
+                    placeholder="RRGGBB"
+                    value={projectDialogColorHexDraft}
+                    onBlur={() => setProjectDialogColorHexDraft(toHexDraft(projectDialogColor))}
+                    onChange={(event) => {
+                      const nextDraft = normalizeHexDraft(event.target.value);
+                      setProjectDialogColorHexDraft(nextDraft);
+
+                      if (isCompleteHexDraft(nextDraft)) {
+                        setProjectDialogColor(`#${nextDraft}`);
+                      }
+                    }}
+                  />
+                </label>
+                <button
+                  className="button-secondary"
+                  disabled={!selectedEditParentProject}
+                  type="button"
+                  onClick={() => {
+                    if (!selectedEditParentProject) {
+                      return;
+                    }
+
+                    setProjectDialogColor(selectedEditParentProject.color);
+                    setProjectDialogColorHexDraft(toHexDraft(selectedEditParentProject.color));
+                  }}
+                >
+                  親の色を使う
+                </button>
+              </div>
               <select value={projectDialogParentId} onChange={(event) => setProjectDialogParentId(event.target.value)}>
                 <option value="">No parent</option>
                 {dialogParentProjects.map((project) => (
