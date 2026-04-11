@@ -2308,10 +2308,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 event.preventDefault();
                 runAction(`task:update:${selectedTask.id}`, "Saving task...", async () => {
                   const response = await readJson<TaskMutationResponse>(`/api/tasks/${selectedTask.id}`, {
-                    ...withJsonRevision(
-                      selectedTaskRevisionProjectId ? `task:${selectedTaskRevisionProjectId}` : undefined,
-                      { method: "PATCH" },
-                    ),
+                    method: "PATCH",
                     body: JSON.stringify({
                       title: selectedTask.title,
                       description: selectedTask.description,
@@ -2604,7 +2601,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 event.preventDefault();
                 runAction(`tag:update:${editingTag.id}`, "Saving tag...", async () => {
                   const response = await readJson<TagMutationResponse>(`/api/tags/${editingTag.id}`, {
-                    ...withJsonRevision("tag", { method: "PATCH" }),
+                    method: "PATCH",
                     body: JSON.stringify({
                       name: tagDialogName,
                       description: tagDialogDescription,
@@ -2693,7 +2690,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 event.preventDefault();
                 runAction(`project:update:${editingProject.id}`, "Saving project...", async () => {
                   const response = await readJson<ProjectMutationResponse>(`/api/projects/${editingProject.id}`, {
-                    ...withJsonRevision("project", { method: "PATCH" }),
+                    method: "PATCH",
                     body: JSON.stringify({
                       name: projectDialogName,
                       description: projectDialogDescription,
@@ -2997,7 +2994,7 @@ export function TaskWorkspaceClient({ projectId, viewId }: { projectId?: string;
                 event.preventDefault();
                 runAction(`view:update:${editingView.id}`, "Saving view...", async () => {
                   const response = await readJson<ViewMutationResponse>(`/api/views/${editingView.id}`, {
-                    ...withJsonRevision("view", { method: "PATCH" }),
+                    method: "PATCH",
                     body: JSON.stringify({
                       name: viewDraft.name,
                       filters: {
